@@ -14,9 +14,10 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
 
-        # Python environment with the transcript API library
+        # Python environment for YouTube transcript fetching.
         pythonEnv = pkgs.python3.withPackages (ps: [
           ps.youtube-transcript-api
+          ps.requests
         ]);
 
         # Python environment for the realwines.ch scraper.
@@ -58,9 +59,13 @@
           '';
         };
 
+        # The fetch-transcripts app: wraps the Python script with its
+        # dependencies on PATH. yt-dlp is no longer needed — channel enumeration
+        # uses the YouTube Data API v3 (googleapis.com) instead, which is not
+        # subject to YouTube's TLS fingerprint bot-detection.
         fetch-transcripts = pkgs.writeShellApplication {
           name = "fetch-transcripts";
-          runtimeInputs = [ pkgs.yt-dlp pythonEnv ];
+          runtimeInputs = [ pythonEnv ];
           text = ''
             exec python3 ${./scripts/fetch_transcripts.py} "$@"
           '';
@@ -81,7 +86,7 @@
         };
 
         devShells.default = pkgs.mkShell {
-          packages = [ pkgs.yt-dlp pythonEnv ];
+          packages = [ pythonEnv pythonEnvScraper ];
           shellHook = ''
             echo "winerank dev shell ready."
             echo ""
