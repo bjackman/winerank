@@ -65,7 +65,7 @@
         # subject to YouTube's TLS fingerprint bot-detection.
         fetch-transcripts = pkgs.writeShellApplication {
           name = "fetch-transcripts";
-          runtimeInputs = [ pythonEnv ];
+          runtimeInputs = [ pythonEnv pkgs.yt-dlp ];
           text = ''
             exec python3 ${./scripts/fetch_transcripts.py} "$@"
           '';

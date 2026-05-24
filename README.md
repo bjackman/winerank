@@ -101,25 +101,80 @@ Each record in `wines.json`:
 
 Downloads transcripts and descriptions for every video on a YouTube channel, saving one JSON file per video.
 
-### Quick start
+### 1. Creating a YouTube API Key (via gcloud CLI)
+
+If you have `gcloud` installed and authenticated, you can easily create a YouTube Data API v3 key:
 
 ```bash
-# With YouTube Data API v3 key (recommended):
-nix run .#fetch-transcripts -- --api-key YOUR_KEY --channel-id UC... --output-dir transcripts/
+# 1. Set your active Google Cloud project
+nix run nixpkgs#google-cloud-sdk -- gcloud config set project YOUR_PROJECT_ID
 
-# From a plain-text file of video IDs (one per line):
-nix run .#fetch-transcripts -- --video-ids-file ids.txt --output-dir transcripts/
+# 2. Enable the YouTube Data API v3 service
+nix run nixpkgs#google-cloud-sdk -- gcloud services enable youtube.googleapis.com
 
-# Both: use file for IDs, API key to enrich with titles/descriptions:
-nix run .#fetch-transcripts -- --video-ids-file ids.txt --api-key YOUR_KEY --output-dir transcripts/
+# 3. Create the API key
+nix run nixpkgs#google-cloud-sdk -- gcloud services api-keys create --display-name="winerank-api-key"
 ```
 
-Transcript language priority:
-1. Manually created subtitles in the video's native language
+### 2. Running the script
+
+Incremental fetching is enabled by default (it skips any video if its output JSON file already exists). To avoid hitting YouTube's rate limits, a default delay of **2.0 seconds** is enforced between video downloads, and the script automatically performs **exponential backoff retries** (up to 4 times) if a `429 Too Many Requests` error is encountered.
+
+```bash
+# Run for the default channel (@KonstantinBaumMasterOfWine) with default 2s delay:
+nix run .#fetch-transcripts -- --api-key YOUR_KEY --output-dir ./transcripts
+
+# Adjust the delay (e.g., 5 seconds) to be even safer against rate limits:
+nix run .#fetch-transcripts -- --api-key YOUR_KEY --sleep 5.0 --output-dir ./transcripts
+
+# Run with a plain-text file of video IDs (one per line) without an API key:
+nix run .#fetch-transcripts -- --video-ids-file ids.txt --output-dir ./transcripts
+```
+
+#### Working around IP Blocks & Bot Checks
+
+If YouTube blocks your requests (returning a `Could not retrieve a transcript...` or `IPBlocked` error), you can bypass this by passing browser cookies using `yt-dlp`'s built-in extraction:
+
+- **Automatic Browser Extraction (Easiest)**: If you are logged into YouTube in your browser (e.g., Firefox or Chrome), the script can extract your cookies directly from your profile:
+  ```bash
+  nix run .#fetch-transcripts -- --api-key YOUR_KEY --cookies firefox --output-dir ./transcripts
+  ```
+  *(Note: You can specify other browsers like `chrome`, `safari`, `edge`, `brave`, etc. If you get a database lock error, close the browser before running).*
+
+- **Manual Cookie File**: If you prefer, export your cookies in **Netscape** format using an extension, save it to a file (e.g., `cookies.txt`), and run:
+  ```bash
+  nix run .#fetch-transcripts -- --api-key YOUR_KEY --cookies ./cookies.txt --output-dir ./transcripts
+  ```
+
+#### Transcript language priority:
+1. Manually created subtitles in the video's native language (as defined in YouTube metadata)
 2. Auto-generated subtitles in the native language
 3. First available track (any language) — logged as a warning
 
+### Output JSON Format
+
+Each video's JSON file is saved as `<video_id>.json` in the output directory:
+
+```json
+{
+  "id": "dQw4w9WgXcQ",
+  "title": "Video Title",
+  "description": "Full video description text...",
+  "channel": "@KonstantinBaumMasterOfWine",
+  "native_language": "en",
+  "transcript_language": "en",
+  "transcript_kind": "manual",
+  "transcript": [
+    { "text": "Hello and welcome", "start": 0.0, "duration": 2.5 },
+    ...
+  ],
+  "error": null
+}
+```
+
 ### Inside the dev shell
+
+For interactive development and full list of command-line flags:
 
 ```bash
 nix develop

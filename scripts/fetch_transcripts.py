@@ -19,16 +19,15 @@ Subtitle selection priority:
 """
 
 import argparse
+import glob
 import json
+import re
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import requests
-from youtube_transcript_api import (
-    YouTubeTranscriptApi,
-    NoTranscriptFound,
-    TranscriptsDisabled,
-)
 
 YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3"
 
@@ -166,49 +165,156 @@ def get_videos_from_file(ids_path: Path, api_key: str | None) -> list[dict]:
 # Transcript fetching
 # ---------------------------------------------------------------------------
 
-def find_transcript(video_id: str, native_lang: str | None):
+def parse_vtt(vtt_content: str) -> list[dict]:
+    """Parse WebVTT content and return a list of segments with text, start, and duration."""
+    TIMESTAMP_RE = re.compile(
+        r'(?:(\d{2}):)?(\d{2}):(\d{2})\.(\d{3}) --> (?:(\d{2}):)?(\d{2}):(\d{2})\.(\d{3})'
+    )
+    
+    def parse_time(hours, minutes, seconds, milliseconds):
+        h = int(hours) if hours else 0
+        m = int(minutes)
+        s = int(seconds)
+        ms = int(milliseconds)
+        return h * 3600 + m * 60 + s + ms / 1000.0
+
+    segments = []
+    content = vtt_content.replace('\r\n', '\n').replace('\r', '\n')
+    blocks = content.split('\n\n')
+    
+    for block in blocks:
+        lines = [line.strip() for line in block.split('\n') if line.strip()]
+        if not lines:
+            continue
+            
+        timestamp_line = None
+        text_lines = []
+        for line in lines:
+            if ' --> ' in line:
+                timestamp_line = line
+            elif timestamp_line is not None:
+                text_lines.append(line)
+                
+        if not timestamp_line:
+            continue
+            
+        match = TIMESTAMP_RE.search(timestamp_line)
+        if not match:
+            continue
+            
+        sh, sm, ss, sms, eh, em, es, ems = match.groups()
+        start = parse_time(sh, sm, ss, sms)
+        end = parse_time(eh, em, es, ems)
+        duration = round(end - start, 3)
+        
+        text = " ".join(text_lines)
+        text = re.sub(r'<[^>]+>', '', text)
+        text = re.sub(r'\{[^\}]+\}', '', text)
+        text = re.sub(r'\s+', ' ', text).strip()
+        
+        if text:
+            segments.append({
+                "text": text,
+                "start": round(start, 3),
+                "duration": duration
+            })
+            
+    # Simple clean up of rollup duplicates for auto-generated subs
+    deduped = []
+    for seg in segments:
+        if not deduped:
+            deduped.append(seg)
+        else:
+            prev = deduped[-1]
+            if prev["text"] == seg["text"]:
+                prev["duration"] = round(seg["start"] + seg["duration"] - prev["start"], 3)
+            else:
+                deduped.append(seg)
+                
+    return deduped
+
+
+def fetch_transcript_with_yt_dlp(video_id: str, cookies_arg: str | None, native_lang: str | None) -> tuple[list[dict], str, str]:
     """
-    Select the best available transcript for a video.
-
-    Priority:
-      1. Manually created in native_lang
-      2. Auto-generated in native_lang
-      3. First available track in any language (with a warning)
-
+    Run yt-dlp to download subtitles and parse the resulting WebVTT.
     Returns (segments, kind, language_code).
-    Raises NoTranscriptFound / TranscriptsDisabled on failure.
     """
-    transcript_list = YouTubeTranscriptApi().list(video_id)
+    import time
+    import random
 
-    if native_lang:
-        # Priority 1 — manual in native language
-        try:
-            t = transcript_list.find_manually_created_transcript([native_lang])
-            return t.fetch(), "manual", t.language_code
-        except NoTranscriptFound:
-            pass
-
-        # Priority 2 — auto-generated in native language
-        try:
-            t = transcript_list.find_generated_transcript([native_lang])
-            return t.fetch(), "auto", t.language_code
-        except NoTranscriptFound:
-            pass
-
-    # Priority 3 — fallback: first available in any language
-    for t in transcript_list:
-        kind = "manual" if not t.is_generated else "auto"
-        print(
-            f"[!] {video_id}: no transcript in {native_lang!r}, "
-            f"falling back to {t.language_code!r} ({kind})",
-            file=sys.stderr,
-        )
-        return t.fetch(), kind, t.language_code
-
-    raise NoTranscriptFound(video_id, [])
+    langs = native_lang if native_lang else "en"
+    max_retries = 4
+    backoff_factor = 2.0
+    initial_delay = 5.0
+    
+    for attempt in range(max_retries):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            
+            cmd = [
+                "yt-dlp",
+                "--write-subs",
+                "--write-auto-subs",
+                "--skip-download",
+                "--sub-format", "vtt",
+                "--sub-langs", langs,
+                "-o", str(tmp_path / "%(id)s.%(ext)s"),
+                f"https://www.youtube.com/watch?v={video_id}"
+            ]
+            
+            if cookies_arg:
+                known_browsers = {"chrome", "firefox", "safari", "opera", "edge", "brave", "chromium", "vivaldi", "librewolf"}
+                if cookies_arg.lower() in known_browsers:
+                    cmd.extend(["--cookies-from-browser", cookies_arg.lower()])
+                else:
+                    cookies_file = Path(cookies_arg).expanduser().resolve()
+                    cmd.extend(["--cookies", str(cookies_file)])
+                    
+            print(f"[*] Running yt-dlp subtitle download for {video_id} (attempt {attempt + 1}/{max_retries}) …", file=sys.stderr)
+            
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
+            vtt_files = glob.glob(str(tmp_path / "*.vtt"))
+            
+            if not vtt_files and langs != ".*":
+                print(f"[!] Subtitles not found for language {langs}, retrying with all languages …", file=sys.stderr)
+                cmd_fallback = cmd.copy()
+                idx = cmd_fallback.index("--sub-langs")
+                cmd_fallback[idx + 1] = ".*"
+                result = subprocess.run(cmd_fallback, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
+                vtt_files = glob.glob(str(tmp_path / "*.vtt"))
+                
+            if vtt_files:
+                vtt_file = Path(vtt_files[0])
+                parts = vtt_file.name.split('.')
+                lang_code = parts[-2] if len(parts) >= 3 else "unknown"
+                
+                output_text = (result.stdout + result.stderr).lower()
+                if "downloading automatic subtitles" in output_text or "auto-generated" in output_text:
+                    kind = "auto"
+                else:
+                    kind = "manual"
+                    
+                vtt_content = vtt_file.read_text(encoding="utf-8")
+                segments = parse_vtt(vtt_content)
+                return segments, kind, lang_code
+                
+            stderr_text = result.stderr or ""
+            if "Too Many Requests" in stderr_text or "429" in stderr_text:
+                if attempt < max_retries - 1:
+                    sleep_time = initial_delay * (backoff_factor ** attempt) + random.uniform(0.1, 1.0)
+                    print(f"[!] YouTube returned HTTP 429 (Too Many Requests). Sleeping for {sleep_time:.2f}s before retrying …", file=sys.stderr)
+                    time.sleep(sleep_time)
+                    continue
+                else:
+                    raise RuntimeError("YouTube blocked the request (HTTP Error 429: Too Many Requests) after max retries.")
+                    
+            if "has no subtitles" in stderr_text or "does not have subtitles" in stderr_text or "does not contain" in stderr_text:
+                raise ValueError("Transcripts are disabled or not found for this video.")
+            raise ValueError(f"Failed to retrieve subtitles: {stderr_text.strip()}")
 
 
 def process_video(
+    cookies_arg: str | None,
     video: dict,
     output_dir: Path,
     channel_handle: str,
@@ -244,23 +350,16 @@ def process_video(
     }
 
     try:
-        segments, kind, lang_code = find_transcript(video_id, native_lang)
+        segments, kind, lang_code = fetch_transcript_with_yt_dlp(video_id, cookies_arg, native_lang)
         record["transcript_language"] = lang_code
         record["transcript_kind"] = kind
-        record["transcript"] = [
-            {"text": seg["text"], "start": seg["start"], "duration": seg["duration"]}
-            for seg in segments
-        ]
+        record["transcript"] = segments
         print(
             f"[+] {video_id}: fetched {len(record['transcript'])} segment(s) "
             f"({kind}, {lang_code})",
             file=sys.stderr,
         )
-    except TranscriptsDisabled:
-        msg = "Transcripts are disabled for this video."
-        print(f"[-] {video_id}: {msg}", file=sys.stderr)
-        record["error"] = msg
-    except NoTranscriptFound as exc:
+    except ValueError as exc:
         msg = str(exc)
         print(f"[-] {video_id}: {msg}", file=sys.stderr)
         record["error"] = msg
@@ -327,6 +426,19 @@ def main() -> None:
         action="store_true",
         help="Re-fetch even if the output file already exists.",
     )
+    parser.add_argument(
+        "--cookies",
+        default=None,
+        metavar="FILE_OR_BROWSER",
+        help="Path to a Netscape format cookies.txt file, or browser name to load from your browser profile.",
+    )
+    parser.add_argument(
+        "--sleep",
+        type=float,
+        default=2.0,
+        metavar="SECONDS",
+        help="Number of seconds to sleep between video requests to avoid rate limits.",
+    )
     args = parser.parse_args()
 
     if not args.api_key and not args.video_ids_file:
@@ -358,8 +470,12 @@ def main() -> None:
             sys.exit(1)
 
     skip_existing = not args.no_skip
-    for video in videos:
-        process_video(video, output_dir, args.channel, skip_existing)
+    import time
+    for idx, video in enumerate(videos):
+        if idx > 0 and args.sleep > 0:
+            print(f"[*] Sleeping for {args.sleep}s to avoid rate limits …", file=sys.stderr)
+            time.sleep(args.sleep)
+        process_video(args.cookies, video, output_dir, args.channel, skip_existing)
 
     print("[*] Done.", file=sys.stderr)
 
