@@ -77,61 +77,18 @@ python3 realwines/parse.py --from-cache --output realwines/wines.json
 
 ### Output format
 
-Each record in `wines.json` looks like:
+Each record in `wines.json`:
 
 ```json
-{
-  "id": 34964,
-  "sku": "167453",
-  "name": "Lafite Rothschild Pauillac – 1953",
-  "slug": "lafite-rothschild-pauillac-1953",
-  "url": "https://realwines.ch/product/lafite-rothschild-pauillac-1953/",
-  "currency": "CHF",
-  "price_chf": 2270.0,
-  "regular_price_chf": 2270.0,
-  "sale_price_chf": 2270.0,
-  "on_sale": false,
-  "in_stock": true,
-  "on_backorder": false,
-  "low_stock_remaining": 1,
-  "stock_status": "Only 1 left in stock",
-  "short_description": "",
-  "size": "75cl bottle",
-  "vintage": "1953",
-  "region": "Bordeaux",
-  "appellation": null,
-  "grape": "Cabernet Sauvignon",
-  "producer": "Lafite",
-  "country": "France",
-  "colour": "Red",
-  "style": "18",
-  "star_rating": "4",
-  "when_to_drink": "2024-2040",
-  "wine_category": "Still wine",
-  "product_group": "Weine",
-  "specialisms": ["Fine wines"],
-  "popular_tags": ["Award winners"],
-  "press_awards": ["97pts James Halliday"],
-  "average_rating": 0.0,
-  "review_count": 0,
-  "image_url": "https://realwines.ch/wp-content/uploads/...",
-  "_raw_attributes": [...]
-}
+{"name": "Lafite Rothschild Pauillac – 1953", "currency": "CHF", "price": 227000, "vintage": "1953"}
 ```
 
-| Field | Notes |
-|---|---|
-| `price_chf` | Current selling price in CHF |
-| `regular_price_chf` | Pre-discount price (same as `price_chf` when not on sale) |
-| `sale_price_chf` | Explicit sale price set in WooCommerce |
-| `on_sale` | `true` when `price_chf < regular_price_chf` |
-| `style` | Numeric dryness/style scale used by realwines.ch (1–20) |
-| `star_rating` | realwines.ch internal star rating (1–5); `null` if unset |
-| `specialisms` | e.g. `["Fine wines"]`, `["Bio wines", "Non fine wine"]` |
-| `popular_tags` | e.g. `["Award winners", "Special Offers"]` |
-| `press_awards` | e.g. `["97pts James Halliday"]` |
-| `wine_category` | `"Still wine"`, `"Sparkling"`, etc. |
-| `_raw_attributes` | Full unprocessed attribute list — useful if new attributes appear |
+| Field | Type | Notes |
+|---|---|---|
+| `name` | string | HTML entities decoded (e.g. `–` not `&#8211;`) |
+| `currency` | string | Always `"CHF"` for this shop |
+| `price` | integer | Current price in minor units (Rappen). Divide by 100 for CHF. e.g. `227000` = CHF 2270.00 |
+| `vintage` | string\|null | Four-digit year, or `null` if not set |
 
 ---
 
