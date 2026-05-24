@@ -1,3 +1,7 @@
 .antigravitycli/
 transcripts
 result
+
+# realwines scraper — cache and output are reproducible, don't commit them
+realwines/cache/
+realwines/wines.json

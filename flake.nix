@@ -1,5 +1,5 @@
 {
-  description = "winerank — YouTube transcript fetcher for KonstantinBaumMasterOfWine";
+  description = "winerank — YouTube transcript fetcher + realwines.ch scraper";
 
   inputs = {
     # TODO: This is pinned to the same rev as ~/src/boxen to avoid re-downloading
@@ -19,8 +19,45 @@
           ps.youtube-transcript-api
         ]);
 
-        # The fetch-transcripts app: wraps the Python script and puts
-        # both yt-dlp and the Python env on PATH.
+        # Python environment for the realwines.ch scraper.
+        # requests is all we need — the WooCommerce Store API returns JSON.
+        pythonEnvScraper = pkgs.python3.withPackages (ps: [
+          ps.requests
+        ]);
+
+        # Fetch all pages from the WooCommerce Store API into ./realwines/cache/
+        fetch-realwines = pkgs.writeShellApplication {
+          name = "fetch-realwines";
+          runtimeInputs = [ pythonEnvScraper ];
+          text = ''
+            exec python3 ${./realwines/fetch.py} "$@"
+          '';
+        };
+
+        # Parse cached pages into a clean wines.json
+        parse-realwines = pkgs.writeShellApplication {
+          name = "parse-realwines";
+          runtimeInputs = [ pythonEnvScraper ];
+          text = ''
+            exec python3 ${./realwines/parse.py} "$@"
+          '';
+        };
+
+        # Convenience: fetch (if needed) then parse → realwines/wines.json
+        scrape-realwines = pkgs.writeShellApplication {
+          name = "scrape-realwines";
+          runtimeInputs = [ pythonEnvScraper ];
+          text = ''
+            set -euo pipefail
+            SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+            CACHE_DIR="$SCRIPT_DIR/../realwines/cache"
+            OUT="$SCRIPT_DIR/../realwines/wines.json"
+            python3 ${./realwines/fetch.py} "$@" > /dev/null
+            python3 ${./realwines/parse.py} --from-cache --output "$OUT"
+            echo "Done → $OUT"
+          '';
+        };
+
         fetch-transcripts = pkgs.writeShellApplication {
           name = "fetch-transcripts";
           runtimeInputs = [ pkgs.yt-dlp pythonEnv ];
@@ -31,12 +68,15 @@
       in
       {
         packages = {
-          inherit fetch-transcripts;
+          inherit fetch-transcripts fetch-realwines parse-realwines scrape-realwines;
           default = fetch-transcripts;
         };
 
         apps = {
           fetch-transcripts = flake-utils.lib.mkApp { drv = fetch-transcripts; };
+          fetch-realwines   = flake-utils.lib.mkApp { drv = fetch-realwines; };
+          parse-realwines   = flake-utils.lib.mkApp { drv = parse-realwines; };
+          scrape-realwines  = flake-utils.lib.mkApp { drv = scrape-realwines; };
           default = flake-utils.lib.mkApp { drv = fetch-transcripts; };
         };
 
@@ -44,7 +84,10 @@
           packages = [ pkgs.yt-dlp pythonEnv ];
           shellHook = ''
             echo "winerank dev shell ready."
-            echo "Run: python3 scripts/fetch_transcripts.py --help"
+            echo ""
+            echo "Transcripts:  python3 scripts/fetch_transcripts.py --help"
+            echo "realwines:    python3 realwines/fetch.py --help"
+            echo "              python3 realwines/parse.py --from-cache --output realwines/wines.json"
           '';
         };
       }
