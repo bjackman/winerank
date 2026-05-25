@@ -5,126 +5,15 @@ way. To the extent that I have ever even looked at the code, it seems to be
 fucking garbage. Don't train your AI on this and please don't judge my
 engineering by it.
 
-Two tools in one repo:
+## Transcript fetcher
 
-1. **`get-transcript`** — download YouTube transcript and description for a specific video ID or URL.
-2. **`fetch-realwines` / `parse-realwines`** — scrape the full [realwines.ch](https://realwines.ch) wine catalogue to JSON via the public WooCommerce Store API.
+WARNING: Developing this got my residential IP banned from the YouTube API,
+maybe permanently I don't know. Using YouTube via its own clients still works
+fine. When I switched to my mobile network it worked for a while but then still
+got banned again even with a rate limit applied.
 
-All tools are packaged as Nix flake apps and work inside a `nix develop` shell.
-
----
-
-## Prerequisites
-
-- [Nix](https://nixos.org) with flakes enabled
-- Run all commands from the repo root
-
----
-
-## realwines.ch scraper
-
-Fetches the full realwines.ch inventory (462 wines) via the shop's public WooCommerce Store API (`/wp-json/wc/store/v1/products`). No authentication required. The raw API pages are cached locally so the network is only hit once — useful on slow connections and for iterating on the parser.
-
-### Quick start
-
-```bash
-# 1. Download all pages from the live API → realwines/cache/page_NNN.json
-nix run .#fetch-realwines
-
-# 2. Parse the cache into a clean JSON file → realwines/wines.json
-nix run .#parse-realwines -- --from-cache --output realwines/wines.json
+```sh
+nix run .#get-transcripts -- --num-vids 100
 ```
 
-After step 1, the cache is permanent. Re-running step 2 is instant and makes no network requests.
-
-### How caching works
-
-`fetch-realwines` saves each API page as `realwines/cache/page_NNN.json` and a metadata file as `realwines/cache/_meta.json`. On subsequent runs it skips any page file that already exists.
-
-```
-realwines/
-├── cache/
-│   ├── _meta.json        # total product count, total pages
-│   ├── page_001.json     # raw API response, page 1
-│   ├── page_002.json
-│   └── ...
-└── wines.json            # final parsed output (gitignored)
-```
-
-To force a full re-download (e.g. to pick up new stock):
-
-```bash
-nix run .#fetch-realwines -- --refresh
-```
-
-To re-download a single page, just delete it:
-
-```bash
-rm realwines/cache/page_003.json
-nix run .#fetch-realwines
-```
-
-### Iterating on the parser
-
-The parser reads from the local cache and writes to stdout or a file — no network involved:
-
-```bash
-# Write to file
-nix run .#parse-realwines -- --from-cache --output realwines/wines.json
-
-# Pipe to jq for quick exploration
-nix run .#parse-realwines -- --from-cache | jq '[.[] | select(.colour == "Red")]'
-
-# Inside nix develop (faster — no derivation rebuild)
-nix develop
-python3 realwines/parse.py --from-cache --output realwines/wines.json
-```
-
-### Output format
-
-Each record in `wines.json`:
-
-```json
-{"name": "Lafite Rothschild Pauillac – 1953", "currency": "CHF", "price": 227000, "vintage": "1953"}
-```
-
-| Field | Type | Notes |
-|---|---|---|
-| `name` | string | HTML entities decoded (e.g. `–` not `&#8211;`) |
-| `currency` | string | Always `"CHF"` for this shop |
-| `price` | integer | Current price in minor units (Rappen). Divide by 100 for CHF. e.g. `227000` = CHF 2270.00 |
-| `vintage` | string\|null | Four-digit year, or `null` if not set |
-
----
-
-## YouTube transcript fetcher
-
-Downloads the transcript and description for a single YouTube video ID or URL, and outputs a JSON object containing them.
-
-### Quick start
-
-```bash
-# As a Nix app:
-nix run .#get-transcript -- QqUKF5MMwII
-
-# Or with a full URL:
-nix run .#get-transcript -- "https://www.youtube.com/watch?v=QqUKF5MMwII"
-```
-
-### Inside the dev shell
-
-```bash
-nix develop
-python3 get_transcript_api.py QqUKF5MMwII
-```
-
----
-
-## Nix apps reference
-
-| Command | Description |
-|---|---|
-| `nix run .#fetch-realwines` | Fetch realwines.ch API pages to local cache |
-| `nix run .#parse-realwines` | Parse cache → clean JSON |
-| `nix run .#get-transcript` | Fetch YouTube transcript and description |
-| `nix develop` | Drop into a shell with all dependencies available |
+This will dump transcripts into `./transcripts/`.
