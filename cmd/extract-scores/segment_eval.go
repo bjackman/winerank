@@ -277,5 +277,5 @@ func compareSegmentation(
 
 // segmentGroundTruthPath returns the expected path for a segment ground truth file.
 func segmentGroundTruthPath(videoID string) string {
-	return fmt.Sprintf("segment_groundtruth_%s.txt", videoID)
+	return fmt.Sprintf("segment_groundtruth/%s.txt", videoID)
 }
