@@ -8,7 +8,9 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sort"
+	"strings"
 )
 
 func main() {
@@ -16,15 +18,39 @@ func main() {
 	transcriptsDir := flag.String("transcripts-dir", "./transcripts", "directory containing transcript JSON files")
 	model := flag.String("model", "", "model name to send in API requests (may be empty)")
 	outputPath := flag.String("output", "./scores.json", "path to write the output JSON file")
+	limit := flag.Int("limit", 0, "limit the number of transcripts to process (0 means no limit)")
 	flag.Parse()
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	log.Printf("Loading transcripts from %s", *transcriptsDir)
-	transcripts, err := LoadAllTranscripts(*transcriptsDir)
-	if err != nil {
-		log.Fatalf("Failed to load transcripts: %v", err)
+	var transcripts map[string]*TranscriptFile
+	var err error
+
+	if flag.NArg() > 0 {
+		transcripts = make(map[string]*TranscriptFile)
+		for _, arg := range flag.Args() {
+			var path string
+			var videoID string
+			if _, err := os.Stat(arg); err == nil {
+				path = arg
+				videoID = strings.TrimSuffix(filepath.Base(arg), ".json")
+			} else {
+				videoID = arg
+				path = filepath.Join(*transcriptsDir, videoID+".json")
+			}
+			tf, err := LoadTranscript(path)
+			if err != nil {
+				log.Fatalf("Failed to load transcript %q: %v", path, err)
+			}
+			transcripts[videoID] = tf
+		}
+	} else {
+		log.Printf("Loading transcripts from %s", *transcriptsDir)
+		transcripts, err = LoadAllTranscripts(*transcriptsDir)
+		if err != nil {
+			log.Fatalf("Failed to load transcripts: %v", err)
+		}
 	}
 	log.Printf("Loaded %d transcript(s)", len(transcripts))
 
@@ -36,6 +62,11 @@ func main() {
 		videoIDs = append(videoIDs, id)
 	}
 	sort.Strings(videoIDs)
+
+	if *limit > 0 && *limit < len(videoIDs) {
+		log.Printf("Limiting processing to first %d transcript(s)", *limit)
+		videoIDs = videoIDs[:*limit]
+	}
 
 	var results []VideoResult
 	for i, videoID := range videoIDs {
