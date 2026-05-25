@@ -1,6 +1,8 @@
 import argparse
 import json
+import os
 import re
+import sys
 import yt_dlp
 from youtube_transcript_api import YouTubeTranscriptApi
 
@@ -37,6 +39,13 @@ def main():
 
     video_id = extract_video_id(args.video_input)
 
+    os.makedirs("transcripts", exist_ok=True)
+    out_path = os.path.join("transcripts", f"{video_id}.json")
+
+    if os.path.exists(out_path):
+        print(f"Transcript for {video_id} already exists at {out_path}. Skipping download.", file=sys.stderr)
+        return
+
     description = fetch_video_description(video_id)
 
     ytt_api = YouTubeTranscriptApi()
@@ -52,10 +61,15 @@ def main():
     full_text = " ".join(texts)
     full_text = re.sub(r'\s+', ' ', full_text).strip()
 
-    print(json.dumps({
+    data = {
         "transcript": full_text,
         "description": description
-    }, ensure_ascii=False))
+    }
+
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+    print(f"Successfully saved transcript and description to {out_path}", file=sys.stderr)
 
 if __name__ == "__main__":
     main()
