@@ -141,8 +141,6 @@ func (c *Client) Segment(ctx context.Context, tf *TranscriptFile) (*segmentRespo
 	if err != nil {
 		return nil, fmt.Errorf("transcript segmentation failed: %w", err)
 	}
-	segJSON, _ := json.MarshalIndent(segResp, "", "  ")
-	log.Printf("Segmenter LLM Response:\n%s\n", string(segJSON))
 	return &segResp, nil
 }
 

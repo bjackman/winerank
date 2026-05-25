@@ -222,9 +222,6 @@ func main() {
 					}
 					if *review {
 						printSegmentedTranscriptUnified(videoID, tf, got, *segResp, segGT)
-					} else if segGT != nil {
-						evalResult := compareSegmentation(got, segGT, len(sentences), sentences, *segResp)
-						printSegmentEval(videoID, evalResult)
 					}
 				}
 			}
