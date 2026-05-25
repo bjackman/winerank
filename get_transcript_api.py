@@ -1,6 +1,7 @@
 import argparse
 import json
 import re
+import yt_dlp
 from youtube_transcript_api import YouTubeTranscriptApi
 
 def extract_video_id(url_or_id: str) -> str:
@@ -17,6 +18,15 @@ def extract_video_id(url_or_id: str) -> str:
 
     return url_or_id
 
+def fetch_video_description(video_id: str) -> str:
+    ydl_opts = {
+        'quiet': True,
+        'no_warnings': True,
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(video_id, download=False)
+        return info.get('description', '')
+
 def main():
     parser = argparse.ArgumentParser(description="Fetch YouTube video transcript.")
     parser.add_argument(
@@ -26,6 +36,8 @@ def main():
     args = parser.parse_args()
 
     video_id = extract_video_id(args.video_input)
+
+    description = fetch_video_description(video_id)
 
     ytt_api = YouTubeTranscriptApi()
     transcript = ytt_api.fetch(video_id)
@@ -40,7 +52,10 @@ def main():
     full_text = " ".join(texts)
     full_text = re.sub(r'\s+', ' ', full_text).strip()
 
-    print(json.dumps({"transcript": full_text}, ensure_ascii=False))
+    print(json.dumps({
+        "transcript": full_text,
+        "description": description
+    }, ensure_ascii=False))
 
 if __name__ == "__main__":
     main()
