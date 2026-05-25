@@ -55,18 +55,27 @@
           '';
         };
 
-        get-transcript = pkgs.writeShellApplication {
-          name = "get-transcript";
-          runtimeInputs = [ pythonEnv ];
-          text = ''
-            exec python3 ${./get_transcript_api.py} "$@"
-          '';
+        get-transcripts = pkgs.python3Packages.buildPythonApplication {
+          pname = "get-transcripts";
+          version = "0.1.0";
+          pyproject = true;
+
+          src = ./.;
+
+          build-system = [
+            pkgs.python3Packages.setuptools
+          ];
+
+          propagatedBuildInputs = [
+            pkgs.python3Packages.yt-dlp
+            pkgs.python3Packages.youtube-transcript-api
+          ];
         };
       in
       {
         packages = {
-          inherit get-transcript fetch-realwines parse-realwines scrape-realwines;
-          default = get-transcript;
+          inherit get-transcripts fetch-realwines parse-realwines scrape-realwines;
+          default = get-transcripts;
         };
 
         devShells.default = pkgs.mkShell {
