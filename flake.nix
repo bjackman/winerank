@@ -9,10 +9,6 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        pythonEnv = pkgs.python3.withPackages (ps: [
-          ps.yt-dlp
-          ps.youtube-transcript-api
-        ]);
 
         pythonEnvScraper = pkgs.python3.withPackages (ps: [
           ps.requests
@@ -50,32 +46,33 @@
             echo "Done → $OUT"
           '';
         };
-
-        get-transcripts = pkgs.python3Packages.buildPythonApplication {
-          pname = "get-transcripts";
-          version = "0.1.0";
-          pyproject = true;
-
-          src = ./.;
-
-          build-system = [
-            pkgs.python3Packages.setuptools
-          ];
-
-          propagatedBuildInputs = [
-            pkgs.python3Packages.yt-dlp
-            pkgs.python3Packages.youtube-transcript-api
-          ];
-        };
       in
       {
-        packages = {
-          inherit get-transcripts fetch-realwines parse-realwines scrape-realwines;
+        packages = rec {
+          inherit fetch-realwines parse-realwines scrape-realwines;
+
+          get-transcripts = pkgs.python3Packages.buildPythonApplication {
+            pname = "get-transcripts";
+            version = "0.1.0";
+            pyproject = true;
+
+            src = ./.;
+
+            build-system = [
+              pkgs.python3Packages.setuptools
+            ];
+
+            propagatedBuildInputs = [
+              pkgs.python3Packages.yt-dlp
+              pkgs.python3Packages.youtube-transcript-api
+            ];
+          };
+
           default = get-transcripts;
         };
 
         devShells.default = pkgs.mkShell {
-          packages = [ pythonEnv ];
+          inputsFrom = [ self.packages.${system}.get-transcripts ];
         };
       }
     );
