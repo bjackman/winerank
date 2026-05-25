@@ -22,9 +22,14 @@ func main() {
 	outputPath := flag.String("output", "./scores.json", "path to write the output JSON file")
 	gtPath := flag.String("groundtruth", "./scores_groundtruth.json", "path to write/read the ground truth JSON file")
 	limit := flag.Int("limit", 0, "limit the number of transcripts to process (0 means no limit)")
+	video := flag.String("video", "", "process only this video ID (mutually exclusive with --limit)")
 	review := flag.Bool("review", false, "interactive review mode to approve/reject extracted scores")
 	segmentOnly := flag.Bool("segment", false, "run segmentation only, show GT diff if available, then exit")
 	flag.Parse()
+
+	if *video != "" && *limit > 0 {
+		log.Fatal("--video and --limit are mutually exclusive")
+	}
 
 	var normalExit bool
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -78,6 +83,13 @@ func main() {
 			}
 			transcripts[videoID] = tf
 		}
+	} else if *video != "" {
+		path := filepath.Join(*transcriptsDir, *video+".json")
+		tf, err := LoadTranscript(path)
+		if err != nil {
+			log.Fatalf("Failed to load transcript %q: %v", path, err)
+		}
+		transcripts = map[string]*TranscriptFile{*video: tf}
 	} else {
 		log.Printf("Loading transcripts from %s", *transcriptsDir)
 		transcripts, err = LoadAllTranscripts(*transcriptsDir)
@@ -132,7 +144,7 @@ func main() {
 
 		// Check if we have an existing result for this video ID
 		res, exists := existingResults[videoID]
-		isForced := flag.NArg() > 0 // If user requested specific video(s), treat as forced reload
+		isForced := flag.NArg() > 0 || *video != "" // explicit video selection forces reload
 
 		var wines []WineScore
 		var reviewSentences []string
