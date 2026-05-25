@@ -135,6 +135,10 @@ func main() {
 		isForced := flag.NArg() > 0 // If user requested specific video(s), treat as forced reload
 
 		var wines []WineScore
+		var reviewSentences []string
+		var reviewGot map[int]segmentClassification
+		var reviewSegGT *segmentGroundTruth
+		var reviewSegResp *segmentResponse
 
 		// Determine if we need to call LLM or if we can use existing results
 		useExisting := false
@@ -212,16 +216,12 @@ func main() {
 					}
 				}
 
-				// Show segmentation output with optional GT comparison
 				if segResp != nil {
-					sentences := splitIntoSentences(tf.Transcript)
-					got := classifySentencesFromResponse(*segResp, len(sentences))
-					var segGT *segmentGroundTruth
+					reviewSentences = splitIntoSentences(tf.Transcript)
+					reviewGot = classifySentencesFromResponse(*segResp, len(reviewSentences))
+					reviewSegResp = segResp
 					if g, err := parseSegmentGroundTruth(segmentGroundTruthPath(videoID)); err == nil {
-						segGT = g
-					}
-					if *review {
-						printSegmentedTranscriptUnified(videoID, tf, got, *segResp, segGT)
+						reviewSegGT = g
 					}
 				}
 			}
@@ -261,7 +261,7 @@ func main() {
 					fmt.Printf("Summary:  %s\n", w.NotesSummary)
 
 					showDescriptionSnippet(tf.Description, w.Name)
-					showSnippetContext(tf.Transcript, w.MatchingSnippet)
+					printWineSegmentContext(w.Name, reviewGot, reviewSentences, reviewSegResp, reviewSegGT)
 
 					for {
 						fmt.Print("Is this extraction correct? [y/n/t/q]: ")
@@ -311,7 +311,7 @@ func main() {
 							fmt.Printf("Score:    %s\n", scoreStr)
 							fmt.Printf("Summary:  %s\n", w.NotesSummary)
 							showDescriptionSnippet(tf.Description, w.Name)
-							showSnippetContext(tf.Transcript, w.MatchingSnippet)
+							printWineSegmentContext(w.Name, reviewGot, reviewSentences, reviewSegResp, reviewSegGT)
 							continue
 						} else if input == "q" {
 							fmt.Println("Quitting review and saving progress...")
@@ -675,6 +675,55 @@ func viewInPager(text string) {
 		fmt.Println(text)
 		fmt.Println("-----------------------\n")
 	}
+}
+
+// printWineSegmentContext prints the transcript sentences assigned to a wine by the model,
+// grouped by phase (blind/reveal). Sentences are colored green/red against GT if available.
+func printWineSegmentContext(wineName string, got map[int]segmentClassification, sentences []string, segResp *segmentResponse, gt *segmentGroundTruth) {
+	if got == nil || segResp == nil || len(sentences) == 0 {
+		return
+	}
+
+	placeholder := ""
+	for _, pm := range segResp.PlaceholderMappings {
+		if strings.EqualFold(strings.TrimSpace(pm.WineName), strings.TrimSpace(wineName)) {
+			placeholder = normalizePlaceholder(pm.Placeholder)
+			break
+		}
+	}
+	if placeholder == "" {
+		fmt.Printf("\n--- TRANSCRIPT SEGMENTS ---\n[No segment found for %q]\n---------------------------\n", wineName)
+		return
+	}
+
+	fmt.Println("\n--- TRANSCRIPT SEGMENTS ---")
+	prevPhase := ""
+	for i := 1; i <= len(sentences); i++ {
+		cls := got[i]
+		if cls.Placeholder != placeholder {
+			continue
+		}
+		if cls.Phase != prevPhase {
+			if prevPhase != "" {
+				fmt.Println()
+			}
+			fmt.Printf("  -- %s --\n", cls.Phase)
+			prevPhase = cls.Phase
+		}
+		if gt != nil {
+			gtCls, hasGT := gt.Sentences[i]
+			if hasGT && gtCls.Phase == cls.Phase && gtCls.Placeholder == cls.Placeholder {
+				fmt.Printf("  \x1b[32m[%d] %s\x1b[0m\n", i, sentences[i-1])
+			} else if hasGT {
+				fmt.Printf("  \x1b[31m[%d] %s\x1b[0m\n", i, sentences[i-1])
+			} else {
+				fmt.Printf("  [%d] %s\n", i, sentences[i-1])
+			}
+		} else {
+			fmt.Printf("  [%d] %s\n", i, sentences[i-1])
+		}
+	}
+	fmt.Println("---------------------------")
 }
 
 // classificationLabel builds a display label for a segment classification,
