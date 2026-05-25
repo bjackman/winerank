@@ -123,7 +123,30 @@ type chatResponse struct {
 	} `json:"choices"`
 }
 
-// Extract implements the single-pass segmentation & score extraction pipeline
+// Segment runs only the transcript segmentation step and returns the raw LLM response.
+func (c *Client) Segment(ctx context.Context, tf *TranscriptFile) (*segmentResponse, error) {
+	sentences := splitIntoSentences(tf.Transcript)
+	if len(sentences) == 0 {
+		return nil, fmt.Errorf("empty transcript")
+	}
+
+	var fullSb strings.Builder
+	for idx, s := range sentences {
+		fullSb.WriteString(fmt.Sprintf("[%d] %s\n", idx+1, s))
+	}
+
+	log.Printf("Segmenting transcript...")
+	var segResp segmentResponse
+	err := c.doChatRequest(ctx, segmentSystemPrompt, BuildSegmentUserMessage(tf.Description, fullSb.String()), 4096, segmentSchema, &segResp)
+	if err != nil {
+		return nil, fmt.Errorf("transcript segmentation failed: %w", err)
+	}
+	segJSON, _ := json.MarshalIndent(segResp, "", "  ")
+	log.Printf("Segmenter LLM Response:\n%s\n", string(segJSON))
+	return &segResp, nil
+}
+
+// Extract implements the two-pass segmentation + score extraction pipeline.
 func (c *Client) Extract(ctx context.Context, tf *TranscriptFile) ([]WineScore, *segmentResponse, error) {
 	sentences := splitIntoSentences(tf.Transcript)
 	totalSents := len(sentences)
@@ -131,25 +154,12 @@ func (c *Client) Extract(ctx context.Context, tf *TranscriptFile) ([]WineScore, 
 		return nil, nil, fmt.Errorf("empty transcript")
 	}
 
-	// Build Full Transcript (original 1-based index numbers prefixing sentences)
-	var fullSb strings.Builder
-	for idx := 0; idx < totalSents; idx++ {
-		fullSb.WriteString(fmt.Sprintf("[%d] %s\n", idx+1, sentences[idx]))
-	}
-	fullTranscript := fullSb.String()
-
-	log.Printf("Segmenting transcript (single-pass)...")
-	segmentReqMsg := BuildSegmentUserMessage(tf.Description, fullTranscript)
-	var segResp segmentResponse
-	err := c.doChatRequest(ctx, segmentSystemPrompt, segmentReqMsg, 4096, segmentSchema, &segResp)
+	segResp, err := c.Segment(ctx, tf)
 	if err != nil {
-		return nil, nil, fmt.Errorf("transcript segmentation failed: %w", err)
+		return nil, nil, err
 	}
 
-	segJSON, _ := json.MarshalIndent(segResp, "", "  ")
-	log.Printf("Segmenter LLM Response:\n%s\n", string(segJSON))
-
-	mappings := combineMappings(segResp, totalSents)
+	mappings := combineMappings(*segResp, totalSents)
 
 	log.Printf("Segmented into %d wine mappings. Extracting scores...", len(mappings))
 
@@ -188,7 +198,7 @@ func (c *Client) Extract(ctx context.Context, tf *TranscriptFile) ([]WineScore, 
 		})
 	}
 
-	return wines, &segResp, nil
+	return wines, segResp, nil
 }
 
 func (c *Client) doChatRequest(ctx context.Context, systemMsg, userMsg string, maxTokens int, schema string, target interface{}) error {

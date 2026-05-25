@@ -23,6 +23,7 @@ func main() {
 	gtPath := flag.String("groundtruth", "./scores_groundtruth.json", "path to write/read the ground truth JSON file")
 	limit := flag.Int("limit", 0, "limit the number of transcripts to process (0 means no limit)")
 	review := flag.Bool("review", false, "interactive review mode to approve/reject extracted scores")
+	segmentOnly := flag.Bool("segment", false, "run segmentation only, show GT diff if available, then exit")
 	flag.Parse()
 
 	var normalExit bool
@@ -88,7 +89,7 @@ func main() {
 
 	client := NewClient(*serverURL, *model)
 
-	// Sort video IDs for deterministic output order.
+	// Sort video IDs for deterministic output order and apply limit.
 	videoIDs := make([]string, 0, len(transcripts))
 	for id := range transcripts {
 		videoIDs = append(videoIDs, id)
@@ -98,6 +99,27 @@ func main() {
 	if *limit > 0 && *limit < len(videoIDs) {
 		log.Printf("Limiting processing to first %d transcript(s)", *limit)
 		videoIDs = videoIDs[:*limit]
+	}
+
+	if *segmentOnly {
+		for _, videoID := range videoIDs {
+			tf := transcripts[videoID]
+			log.Printf("Segmenting %s...", videoID)
+			segResp, err := client.Segment(ctx, tf)
+			if err != nil {
+				log.Printf("Error segmenting %s: %v", videoID, err)
+				continue
+			}
+			sentences := splitIntoSentences(tf.Transcript)
+			got := classifySentencesFromResponse(*segResp, len(sentences))
+			var segGT *segmentGroundTruth
+			if g, err := parseSegmentGroundTruth(segmentGroundTruthPath(videoID)); err == nil {
+				segGT = g
+			}
+			printSegmentedTranscriptUnified(videoID, tf, got, *segResp, segGT)
+		}
+		normalExit = true
+		return
 	}
 
 	reader := bufio.NewReader(os.Stdin)
