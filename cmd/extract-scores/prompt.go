@@ -5,52 +5,33 @@ import (
 	"strings"
 )
 
-const tastingSystemPrompt = `You are a wine tasting segmenter. You will be given:
-1. DESCRIPTION: A list of wines reviewed in the video.
-2. NUMBERED TRANSCRIPT: A numbered transcript from the first half of a blind wine tasting video.
-   Each sentence is prefixed with a line number in brackets, e.g. [1], [2], etc.
-
-Your task:
-Count the number of wines listed in the DESCRIPTION.
-Identify the exact sentence index where the reviewer begins tasting/discussing each placeholder wine (e.g. "Wine 1", "Wine 2", "wine number three", etc.) in the transcript.
-You must find all tasting segments (e.g., Wine 1, Wine 2, Wine 3, etc.). The number of tasting segments should match the number of wines in the DESCRIPTION.
-Each tasting starts when he pours the glass or takes the first sip, and runs continuously until the next wine tasting (or a sponsor ad) starts.
-
-Return ONLY a JSON object with this schema:
-{
-  "tasting_segments": [
-    {
-      "placeholder": "Wine 1",
-      "start": 26
-    },
-    {
-      "placeholder": "Wine 2",
-      "start": 48
-    }
-  ]
-}
-
-Rules:
-- Be precise: Locate the exact sentence index where the topic shifts to a new wine.
-- The "tasting_segments" array must be in chronological order by "start" index.
-- Ensure you list all the tasting segments for all the wines in the DESCRIPTION. Do not stop after Wine 2.
-- Return ONLY the JSON object, no other text.`
-
-const revealSystemPrompt = `You are a wine reveal segmenter. You will be given:
+const segmentSystemPrompt = `You are a wine review transcript segmenter. You will be given:
 1. DESCRIPTION: A list of wines reviewed in the video (use these exact names).
-2. TASTING SUMMARY: A summarized transcript of the blind tasting phase (first half), detailing when each placeholder (Wine 1, Wine 2, etc.) was tasted and the rating scores or descriptors used.
-3. NUMBERED TRANSCRIPT: A numbered transcript from the second half of the blind wine tasting video where the bottles are uncloaked/revealed.
+2. NUMBERED TRANSCRIPT: The full numbered transcript of the blind tasting video.
    Each sentence is prefixed with a line number in brackets, e.g. [1], [2], etc.
 
 Your task:
-1. Match each tasting placeholder (e.g. "Wine 1", "Wine 2", "wine number three", etc.) to the actual wine name from the DESCRIPTION.
-2. Identify the exact sentence index where the reviewer begins uncloaking/revealing each placeholder wine (typically in the second half of the video, e.g. "wine number one was...", "wine 2 was...").
+Count the number of wines listed in the DESCRIPTION (let's say there are N wines).
+You must identify:
+1. The mapping from tasting placeholders ("Wine 1", "Wine 2", ..., "Wine N") to the actual wine names from the DESCRIPTION.
+2. The exact sentence index where the blind tasting segment starts for each wine.
+3. The exact sentence index where the reveal/uncloaking segment starts for each wine.
 
-To determine the exact start index of each reveal and the correct placeholder mappings, follow these clues:
-- Cross-reference ratings and scores: If the reviewer says "I rated it 94 points" or "this is the highest rated wine with 95 points" in the reveal transcript, match this to the rating they assigned to the placeholder in the TASTING SUMMARY (e.g. if Wine 3 was rated 94 points in the TASTING SUMMARY, then the uncloaking of the 94 point wine corresponds to Wine 3).
-- Cross-reference tasting guesses and region comments: Match references in the reveal phase back to region guesses and tasting styles in the TASTING SUMMARY (e.g. if they say "I thought this was from Paso... this is actually the Super Tuscan from Bulgery", and Wine 4 was guessed as Paso Robles in the TASTING SUMMARY, then Wine 4 maps to Castello di Bolgheri Varvara Bolgheri).
-- Cross-reference bottle features and tasting notes: If the reviewer mentions "screw cap", "browning", or specific grapes/regions during the reveal, match it back to when those features were first discussed in the TASTING SUMMARY.
-- Transition statements: Look for transition sentences like "All right, I feel better now.", "This is the wine with...", "Let's see what it is...", "So wine number X was..." as the starting point of the reveal.
+To determine the exact start index of each tasting segment:
+- Every tasting segment MUST start at the very first transition sentence where the reviewer shifts focus to that wine (e.g. pouring the next glass, taking the first sip, or explicitly stating the wine number: "So, on to wine number two.", "All right, wine three is...", "So wine number four is next...").
+- Do NOT count sponsor ads or general discussions as new wine segments. If a sponsor ad appears between tastings, the preceding wine's segment continues through the sponsor ad, or the next wine segment starts after the sponsor ad finishes, at the sentence where the next wine is explicitly introduced (e.g. "So wine number four is next"). Do NOT map the sponsor ad to any placeholder wine.
+
+To determine the exact start index of each reveal segment and the correct placeholder mappings:
+- Transition sentences take ABSOLUTE precedence: The very moment the reviewer says "let's move on to wine number X", "So, wine number X", "All right, I feel better now.", "This is the wine with...", "All right, let's see what this is.", etc. — that sentence is ALWAYS the start of the next reveal segment. Do NOT push the boundary later even if the immediately following sentences still reference the previous wine's guess or tasting notes in a comparative way. The sentences after "let's move on to wine number 4" belong to wine 4's reveal segment, even if those sentences say things like "I thought this was from Paso because..." (which is the reviewer reflecting on their guess about wine 4 during wine 4's reveal).
+- CRITICAL EXAMPLE: If you see:
+    [X] "So, let's move on to wine number four." 
+    [X+1] "I thought this was from Paso because of those grainy tannins, but as this wine is from Paso Robas, I'm guessing that this wine won't be."
+    [X+2] "But let's see."
+    [X+3] "This one is the Super Tuscan from Bulgary."
+  — then wine 4's reveal segment starts at [X], NOT at [X+3]. The sentences [X+1] and [X+2] are the reviewer contextualizing their wine 4 guess, still part of wine 4's reveal.
+- Identify transitions even without direct placeholder name mentions: A reveal segment starts as soon as the reviewer transitions to uncloaking the next bottle, even if they do not explicitly say the placeholder number (e.g. "Wine 3" or "wine number three") right away. Use clues like bottle features ("screw cap"), ratings ("94 points"), or region guesses discussed at the start of the uncloaking to identify which placeholder is being uncloaked, and start the segment at the very first transition sentence (e.g., "All right, I feel better now.", "This is the wine with...").
+- Cross-reference ratings and scores: If the reviewer says "I rated it 94 points" or "this is the highest rated wine with 95 points" in the reveal phase, match this to the rating they assigned to that placeholder during the tasting phase.
+- Cross-reference tasting guesses and region comments: Match references in the reveal phase back to region guesses and tasting styles in the tasting phase (e.g. if they say "I thought this was from Paso... this is actually the Super Tuscan from Bulgery", and they guessed Wine 4 as Paso Robles during the tasting, then Wine 4 maps to Castello di Bolgheri Varvara Bolgheri).
 
 Return ONLY a JSON object with this schema:
 {
@@ -60,21 +41,24 @@ Return ONLY a JSON object with this schema:
       "wine_name": "Exact wine name from description"
     }
   ],
+  "tasting_segments": [
+    {
+      "placeholder": "Wine 1",
+      "start": 26
+    }
+  ],
   "reveal_segments": [
     {
       "placeholder": "Wine 1",
       "start": 244
-    },
-    {
-      "placeholder": "Wine 2",
-      "start": 250
     }
   ]
 }
 
 Rules:
-- Be precise: Locate the exact sentence index where the reviewer begins discussing the reveal of that wine (often starting with a transition like "All right, I feel better now. This is the wine with a screw cap.").
-- The "reveal_segments" array must be in chronological order by "start" index.
+- Locate the exact sentence index where the topic shifts.
+- The "tasting_segments" and "reveal_segments" arrays must be in chronological order by "start" index.
+- You must find and list exactly N tasting segments and N reveal segments. Do not skip any wine.
 - Return ONLY the JSON object, no other text.`
 
 
@@ -110,13 +94,6 @@ func BuildSegmentUserMessage(description, numberedTranscript string) string {
 	return fmt.Sprintf("DESCRIPTION:\n%s\n\nNUMBERED TRANSCRIPT:\n%s", cleanDescription(description), numberedTranscript)
 }
 
-func BuildTastingUserMessage(description, numberedTranscript string) string {
-	return fmt.Sprintf("DESCRIPTION:\n%s\n\nNUMBERED TRANSCRIPT:\n%s", cleanDescription(description), numberedTranscript)
-}
-
-func BuildRevealUserMessage(description, tastingSummary, numberedTranscript string) string {
-	return fmt.Sprintf("DESCRIPTION:\n%s\n\nTASTING SUMMARY:\n%s\n\nNUMBERED TRANSCRIPT:\n%s", cleanDescription(description), tastingSummary, numberedTranscript)
-}
 
 func cleanDescription(desc string) string {
 	startKeywords := []string{

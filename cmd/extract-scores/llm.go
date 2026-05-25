@@ -56,27 +56,7 @@ type jsonSchema struct {
 	Strict bool            `json:"strict,omitempty"`
 }
 
-const tastingSchema = `{
-  "type": "object",
-  "properties": {
-    "tasting_segments": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "placeholder": { "type": "string" },
-          "start": { "type": "integer" }
-        },
-        "required": ["placeholder", "start"],
-        "additionalProperties": false
-      }
-    }
-  },
-  "required": ["tasting_segments"],
-  "additionalProperties": false
-}`
-
-const revealSchema = `{
+const segmentSchema = `{
   "type": "object",
   "properties": {
     "placeholder_mappings": {
@@ -88,6 +68,18 @@ const revealSchema = `{
           "wine_name": { "type": "string" }
         },
         "required": ["placeholder", "wine_name"],
+        "additionalProperties": false
+      }
+    },
+    "tasting_segments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "placeholder": { "type": "string" },
+          "start": { "type": "integer" }
+        },
+        "required": ["placeholder", "start"],
         "additionalProperties": false
       }
     },
@@ -104,7 +96,7 @@ const revealSchema = `{
       }
     }
   },
-  "required": ["placeholder_mappings", "reveal_segments"],
+  "required": ["placeholder_mappings", "tasting_segments", "reveal_segments"],
   "additionalProperties": false
 }`
 
@@ -131,7 +123,7 @@ type chatResponse struct {
 	} `json:"choices"`
 }
 
-// Extract implements the two-step segmentation & extraction pipeline
+// Extract implements the single-pass segmentation & score extraction pipeline
 func (c *Client) Extract(ctx context.Context, tf *TranscriptFile, showSegments bool) ([]WineScore, *segmentResponse, error) {
 	sentences := splitIntoSentences(tf.Transcript)
 	totalSents := len(sentences)
@@ -139,66 +131,33 @@ func (c *Client) Extract(ctx context.Context, tf *TranscriptFile, showSegments b
 		return nil, nil, fmt.Errorf("empty transcript")
 	}
 
-	splitIdx := (totalSents * 7) / 10
-
-	tastingEnd := splitIdx + 20
-	if tastingEnd > totalSents {
-		tastingEnd = totalSents
+	// Build Full Transcript (original 1-based index numbers prefixing sentences)
+	var fullSb strings.Builder
+	for idx := 0; idx < totalSents; idx++ {
+		fullSb.WriteString(fmt.Sprintf("[%d] %s\n", idx+1, sentences[idx]))
 	}
+	fullTranscript := fullSb.String()
 
-	revealStart := splitIdx - 20
-	if revealStart < 0 {
-		revealStart = 0
-	}
-
-	// Build Tasting Transcript (original 1-based index numbers prefixing sentences)
-	var tastSb strings.Builder
-	for idx := 0; idx < tastingEnd; idx++ {
-		tastSb.WriteString(fmt.Sprintf("[%d] %s\n", idx+1, sentences[idx]))
-	}
-	tastingTranscript := tastSb.String()
-
-	// Build Reveal Transcript (original 1-based index numbers prefixing sentences)
-	var revSb strings.Builder
-	for idx := revealStart; idx < totalSents; idx++ {
-		revSb.WriteString(fmt.Sprintf("[%d] %s\n", idx+1, sentences[idx]))
-	}
-	revealTranscript := revSb.String()
-
-	log.Printf("Segmenting tasting phase (first half)...")
-	tastingReqMsg := BuildTastingUserMessage(tf.Description, tastingTranscript)
-	var tastResp tastingResponse
-	err := c.doChatRequest(ctx, tastingSystemPrompt, tastingReqMsg, 2048, tastingSchema, &tastResp)
-	if err != nil {
-		return nil, nil, fmt.Errorf("tasting phase segmentation failed: %w", err)
-	}
-
-	tastingSummary := buildTastingSummary(sentences, tastResp, totalSents)
-
-	log.Printf("Segmenting reveal phase (second half with tasting summary)...")
-	revealReqMsg := BuildRevealUserMessage(tf.Description, tastingSummary, revealTranscript)
-	var revResp revealResponse
-	err = c.doChatRequest(ctx, revealSystemPrompt, revealReqMsg, 2048, revealSchema, &revResp)
-	if err != nil {
-		return nil, nil, fmt.Errorf("reveal phase segmentation failed: %w", err)
-	}
-
-	tastJSON, _ := json.MarshalIndent(tastResp, "", "  ")
-	revJSON, _ := json.MarshalIndent(revResp, "", "  ")
-	log.Printf("Tasting LLM Response:\n%s\n", string(tastJSON))
-	log.Printf("Reveal LLM Response:\n%s\n", string(revJSON))
-
-	mappings := combineMappings(tastResp, revResp, totalSents)
+	log.Printf("Segmenting transcript (single-pass)...")
+	segmentReqMsg := BuildSegmentUserMessage(tf.Description, fullTranscript)
 	var segResp segmentResponse
-	segResp.Mappings = mappings
+	err := c.doChatRequest(ctx, segmentSystemPrompt, segmentReqMsg, 4096, segmentSchema, &segResp)
+	if err != nil {
+		return nil, nil, fmt.Errorf("transcript segmentation failed: %w", err)
+	}
 
-	log.Printf("Segmented into %d wine mappings. Extracting scores...", len(segResp.Mappings))
+	segJSON, _ := json.MarshalIndent(segResp, "", "  ")
+	log.Printf("Segmenter LLM Response:\n%s\n", string(segJSON))
+
+	mappings := combineMappings(segResp, totalSents)
+
+	log.Printf("Segmented into %d wine mappings. Extracting scores...", len(mappings))
 	if showSegments {
-		printSegmentedTranscript(tf, segResp.Mappings)
+		printSegmentedTranscript(tf, mappings)
 	}
 
 	var wines []WineScore
-	for idx, m := range segResp.Mappings {
+	for idx, m := range mappings {
 		var segmentParts []string
 		indices := parseRanges(m.SentenceIndices)
 		for _, sIdx := range indices {
@@ -210,14 +169,14 @@ func (c *Client) Extract(ctx context.Context, tf *TranscriptFile, showSegments b
 
 		var extResp extractResponse
 		if len(focusedText) > 0 {
-			log.Printf("  [%d/%d] Extracting score for: %s", idx+1, len(segResp.Mappings), m.WineName)
+			log.Printf("  [%d/%d] Extracting score for: %s", idx+1, len(mappings), m.WineName)
 			extractReqMsg := BuildExtractUserMessage(m.WineName, focusedText)
 			err := c.doChatRequest(ctx, extractSystemPrompt, extractReqMsg, 1024, extractSchema, &extResp)
 			if err != nil {
 				log.Printf("Warning: step 2 extraction failed for wine %q: %v. Using defaults.", m.WineName, err)
 			}
 		} else {
-			log.Printf("  [%d/%d] No transcript segment mapped for: %s (will default to no score)", idx+1, len(segResp.Mappings), m.WineName)
+			log.Printf("  [%d/%d] No transcript segment mapped for: %s (will default to no score)", idx+1, len(mappings), m.WineName)
 		}
 
 		wines = append(wines, WineScore{
@@ -409,9 +368,9 @@ func parseRanges(s string) []int {
 	return indices
 }
 
-func combineMappings(tastResp tastingResponse, revResp revealResponse, totalSentences int) []segmentMapping {
+func combineMappings(segResp segmentResponse, totalSentences int) []segmentMapping {
 	placeholderToWine := make(map[string]string)
-	for _, pm := range revResp.PlaceholderMappings {
+	for _, pm := range segResp.PlaceholderMappings {
 		key := cleanPlaceholder(pm.Placeholder)
 		placeholderToWine[key] = pm.WineName
 	}
@@ -425,7 +384,7 @@ func combineMappings(tastResp tastingResponse, revResp revealResponse, totalSent
 			return name
 		}
 		// Try fallback substring match
-		for _, pm := range revResp.PlaceholderMappings {
+		for _, pm := range segResp.PlaceholderMappings {
 			pClean := cleanPlaceholder(placeholder)
 			pmClean := cleanPlaceholder(pm.Placeholder)
 			if pClean == pmClean || strings.Contains(pClean, pmClean) || strings.Contains(pmClean, pClean) {
@@ -433,7 +392,7 @@ func combineMappings(tastResp tastingResponse, revResp revealResponse, totalSent
 			}
 		}
 		// Also try substring matching the wine name
-		for _, pm := range revResp.PlaceholderMappings {
+		for _, pm := range segResp.PlaceholderMappings {
 			wName := strings.ToLower(pm.WineName)
 			pName := strings.ToLower(placeholder)
 			if strings.Contains(wName, pName) || strings.Contains(pName, wName) {
@@ -444,13 +403,13 @@ func combineMappings(tastResp tastingResponse, revResp revealResponse, totalSent
 	}
 
 	// Sort tasting segments
-	tastSegs := append([]tastingSegment(nil), tastResp.TastingSegments...)
+	tastSegs := append([]tastingSegment(nil), segResp.TastingSegments...)
 	sort.Slice(tastSegs, func(i, j int) bool {
 		return tastSegs[i].Start < tastSegs[j].Start
 	})
 
 	// Sort reveal segments
-	revSegs := append([]revealSegment(nil), revResp.RevealSegments...)
+	revSegs := append([]revealSegment(nil), segResp.RevealSegments...)
 	sort.Slice(revSegs, func(i, j int) bool {
 		return revSegs[i].Start < revSegs[j].Start
 	})
@@ -579,67 +538,5 @@ func formatRanges(indices []int) string {
 		ranges = append(ranges, fmt.Sprintf("%d-%d", start, prev))
 	}
 	return strings.Join(ranges, ", ")
-}
-
-func buildTastingSummary(sentences []string, tastResp tastingResponse, totalSentences int) string {
-	segs := append([]tastingSegment(nil), tastResp.TastingSegments...)
-	sort.Slice(segs, func(i, j int) bool {
-		return segs[i].Start < segs[j].Start
-	})
-
-	var sb strings.Builder
-	for i, seg := range segs {
-		start := seg.Start
-		end := totalSentences
-		if i+1 < len(segs) {
-			end = segs[i+1].Start - 1
-		}
-		if start < 1 {
-			start = 1
-		}
-		if end > totalSentences {
-			end = totalSentences
-		}
-
-		sb.WriteString(fmt.Sprintf("Tasting evaluation for %s (sentences [%d]-[%d]):\n", seg.Placeholder, start, end))
-
-		included := make(map[int]bool)
-
-		// First 3 sentences (captures initial region guesses or details)
-		for idx := start; idx <= start+2 && idx <= end; idx++ {
-			included[idx] = true
-		}
-
-		// Last sentence (usually transitions or conclusion comments)
-		if end >= start {
-			included[end] = true
-		}
-
-		// Score-related sentences or score keywords
-		scoreKeywords := []string{"rate", "rating", "point", "pts", "90", "91", "92", "93", "94", "95", "96"}
-		for idx := start; idx <= end; idx++ {
-			sentLower := strings.ToLower(sentences[idx-1])
-			hasKeyword := false
-			for _, kw := range scoreKeywords {
-				if strings.Contains(sentLower, kw) {
-					hasKeyword = true
-					break
-				}
-			}
-			if hasKeyword {
-				included[idx] = true
-			}
-		}
-
-		// Write the included sentences in chronological order
-		for idx := start; idx <= end; idx++ {
-			if included[idx] {
-				sb.WriteString(fmt.Sprintf("[%d] %s\n", idx, sentences[idx-1]))
-			}
-		}
-		sb.WriteString("\n")
-	}
-
-	return sb.String()
 }
 
