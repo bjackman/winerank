@@ -10,9 +10,13 @@ const segmentSystemPrompt = `You are a wine review transcript segmenter. You wil
 2. NUMBERED TRANSCRIPT: The full numbered transcript of the video.
    Each sentence is prefixed with a line number in brackets, e.g. [1], [2], etc.
 
-STEP 1 — Determine the video type:
-- "blind": the reviewer tastes wines without knowing what they are, then reveals each bottle in a separate uncloaking phase afterwards.
-- "open": the bottles are already visible throughout; the reviewer discusses and scores each wine directly with no separate reveal phase.
+STEP 1 — Determine the video type.
+
+Look at how each wine is introduced in the transcript:
+- If the reviewer NAMES the wine before or at the moment of tasting it (e.g. "In 10th place we have the 2023 Château X..." or "Next up is the Barolo from producer Y..."), this is "open".
+- If wines are tasted without being named and all bottles are uncloaked together in a later phase, this is "blind".
+
+As a quick check: is there a block near the END of the video where multiple bottles are revealed in sequence? If yes → "blind". If no such reveal block exists → "open".
 
 Set video_type to "blind" or "open" accordingly.
 
