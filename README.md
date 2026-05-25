@@ -26,5 +26,5 @@ says is a reasonable model for this task with some tweak flags that are supposed
 to keep things in VRAM:
 
 ```sh
-llama-server --hf-repo bartowski/Qwen2.5-7B-Instruct-GGUF --hf-file Qwen2.5-7B-Instruct-Q4_K_M.gguf -ngl 99 -c 8192 --port 8080
+llama-server --hf-repo bartowski/Qwen2.5-7B-Instruct-GGUF --hf-file Qwen2.5-7B-Instruct-Q4_K_M.gguf -ngl 99 -c 8192 --port 8080 -np 1
 ```
