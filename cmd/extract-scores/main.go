@@ -738,20 +738,33 @@ func printSegmentedTranscriptUnified(videoID string, tf *TranscriptFile, got map
 
 		modelChanged := modelClass != prevModel
 		gtChanged := hasGT && gtClass != prevGT
+		agree := hasGT && modelClass.Phase == gtClass.Phase && modelClass.Placeholder == gtClass.Placeholder
 
-		if i == 1 || modelChanged || gtChanged {
-			modelLabel := classificationLabel(modelClass, modelWineNames)
+		if modelChanged || gtChanged {
 			fmt.Println()
-			if !hasGT || (modelClass.Phase == gtClass.Phase && modelClass.Placeholder == gtClass.Placeholder) {
-				fmt.Printf("\x1b[1;35m=== %s ===\x1b[0m\n\n", modelLabel)
-			} else {
-				gtLabel := classificationLabel(gtClass, gtWineNames)
-				fmt.Printf("\x1b[31mGT:    === %s ===\x1b[0m\n", gtLabel)
-				fmt.Printf("\x1b[31m  MODEL: === %s ===\x1b[0m\n\n", modelLabel)
+			switch {
+			case !hasGT || agree:
+				fmt.Printf("=== %s ===\n", classificationLabel(modelClass, modelWineNames))
+			case gtChanged && modelChanged:
+				// Both changed to different things: one line each.
+				fmt.Printf("GT:    === %s ===\n", classificationLabel(gtClass, gtWineNames))
+				fmt.Printf("MODEL: === %s ===\n", classificationLabel(modelClass, modelWineNames))
+			case gtChanged:
+				fmt.Printf("GT:    === %s ===\n", classificationLabel(gtClass, gtWineNames))
+			default:
+				fmt.Printf("MODEL: === %s ===\n", classificationLabel(modelClass, modelWineNames))
 			}
+			fmt.Println()
 		}
 
-		fmt.Printf("[%d] %s\n", i, sentences[i-1])
+		switch {
+		case !hasGT:
+			fmt.Printf("[%d] %s\n", i, sentences[i-1])
+		case agree:
+			fmt.Printf("\x1b[32m[%d] %s\x1b[0m\n", i, sentences[i-1])
+		default:
+			fmt.Printf("\x1b[31m[%d] %s\x1b[0m\n", i, sentences[i-1])
+		}
 
 		prevModel = modelClass
 		if hasGT {
