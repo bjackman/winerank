@@ -13,22 +13,11 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-
-        yt-dlp = pkgs.yt-dlp.overrideAttrs (oldAttrs: rec {
-          version = "2026.05.24.234402";
-          src = pkgs.fetchurl {
-            url = "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/download/${version}/yt-dlp.tar.gz";
-            hash = "sha256-q3LDSJiVnOmCeFusgoT3mm1kpZk1xJqmYoalL2K/M+o=";
-          };
-        });
-
-        # Python environment with the transcript API library
         pythonEnv = pkgs.python3.withPackages (ps: [
+          ps.yt-dlp
           ps.youtube-transcript-api
         ]);
 
-        # Python environment for the realwines.ch scraper.
-        # requests is all we need — the WooCommerce Store API returns JSON.
         pythonEnvScraper = pkgs.python3.withPackages (ps: [
           ps.requests
         ]);
@@ -68,7 +57,7 @@
 
         get-transcript = pkgs.writeShellApplication {
           name = "get-transcript";
-          runtimeInputs = [ yt-dlp pythonEnv ];
+          runtimeInputs = [ pythonEnv ];
           text = ''
             exec python3 ${./get_transcript_api.py} "$@"
           '';
@@ -80,23 +69,8 @@
           default = get-transcript;
         };
 
-        apps = {
-          get-transcript    = flake-utils.lib.mkApp { drv = get-transcript; };
-          fetch-realwines   = flake-utils.lib.mkApp { drv = fetch-realwines; };
-          parse-realwines   = flake-utils.lib.mkApp { drv = parse-realwines; };
-          scrape-realwines  = flake-utils.lib.mkApp { drv = scrape-realwines; };
-          default = flake-utils.lib.mkApp { drv = get-transcript; };
-        };
-
         devShells.default = pkgs.mkShell {
-          packages = [ yt-dlp pythonEnv ];
-          shellHook = ''
-            echo "winerank dev shell ready."
-            echo ""
-            echo "Transcripts:  python3 get_transcript_api.py --help"
-            echo "realwines:    python3 realwines/fetch.py --help"
-            echo "              python3 realwines/parse.py --from-cache --output realwines/wines.json"
-          '';
+          packages = [ pythonEnv ];
         };
       }
     );
