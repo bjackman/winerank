@@ -2,12 +2,14 @@ package main
 
 // WineScore represents a single wine's extracted review data.
 type WineScore struct {
-	Name         string `json:"name"`
-	Producer     string `json:"producer"`
-	Vintage      string `json:"vintage"`
-	Region       string `json:"region"`
-	Score        *int   `json:"score"`          // nil if wine was discussed but not scored
-	NotesSummary string `json:"notes_summary"`
+	Name            string `json:"name"`
+	Producer        string `json:"producer"`
+	Vintage         string `json:"vintage"`
+	Region          string `json:"region"`
+	Score           *int   `json:"score"`            // nil if wine was discussed but not scored
+	NotesSummary    string `json:"notes_summary"`
+	MatchingSnippet string `json:"matching_snippet"` // verbatim snippet of transcript matching the review
+	ReviewStatus    string `json:"review_status"`    // review status: "pending", "approved", "rejected"
 }
 
 // VideoResult groups the extracted wine scores for a single video.

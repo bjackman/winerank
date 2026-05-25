@@ -19,7 +19,8 @@ Return ONLY a JSON object with this schema:
       "vintage": "Vintage year or NV for non-vintage",
       "region": "Region, country",
       "score": 85,
-      "notes_summary": "Brief 1-2 sentence summary of the tasting notes"
+      "notes_summary": "Brief 1-2 sentence summary of the tasting notes",
+      "matching_snippet": "A short verbatim snippet from the TRANSCRIPT where the reviewer discusses this wine or gives the score"
     }
   ]
 }
@@ -27,6 +28,7 @@ Return ONLY a JSON object with this schema:
 Rules:
 - Use the wine names exactly as they appear in the description, not the garbled transcript versions.
 - Set "score" to null if a wine is discussed but not given a numerical score.
+- Set "matching_snippet" to a verbatim quote/sentence from the TRANSCRIPT where this wine is evaluated or scored. It must be a direct substring of the TRANSCRIPT.
 - If no wines are reviewed or scored in the video, return {"wines": []}.
 - Only include wines that are actually reviewed/tasted in the transcript, not wines that are merely mentioned in passing.
 - Do not invent or hallucinate scores. Only extract scores explicitly stated by the reviewer.
