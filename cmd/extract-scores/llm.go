@@ -173,8 +173,10 @@ func (c *Client) Extract(ctx context.Context, tf *TranscriptFile, showSegments b
 		return nil, nil, fmt.Errorf("tasting phase segmentation failed: %w", err)
 	}
 
-	log.Printf("Segmenting reveal phase (second half)...")
-	revealReqMsg := BuildRevealUserMessage(tf.Description, revealTranscript)
+	tastingSummary := buildTastingSummary(sentences, tastResp, totalSents)
+
+	log.Printf("Segmenting reveal phase (second half with tasting summary)...")
+	revealReqMsg := BuildRevealUserMessage(tf.Description, tastingSummary, revealTranscript)
 	var revResp revealResponse
 	err = c.doChatRequest(ctx, revealSystemPrompt, revealReqMsg, 2048, revealSchema, &revResp)
 	if err != nil {
@@ -577,5 +579,67 @@ func formatRanges(indices []int) string {
 		ranges = append(ranges, fmt.Sprintf("%d-%d", start, prev))
 	}
 	return strings.Join(ranges, ", ")
+}
+
+func buildTastingSummary(sentences []string, tastResp tastingResponse, totalSentences int) string {
+	segs := append([]tastingSegment(nil), tastResp.TastingSegments...)
+	sort.Slice(segs, func(i, j int) bool {
+		return segs[i].Start < segs[j].Start
+	})
+
+	var sb strings.Builder
+	for i, seg := range segs {
+		start := seg.Start
+		end := totalSentences
+		if i+1 < len(segs) {
+			end = segs[i+1].Start - 1
+		}
+		if start < 1 {
+			start = 1
+		}
+		if end > totalSentences {
+			end = totalSentences
+		}
+
+		sb.WriteString(fmt.Sprintf("Tasting evaluation for %s (sentences [%d]-[%d]):\n", seg.Placeholder, start, end))
+
+		included := make(map[int]bool)
+
+		// First 3 sentences (captures initial region guesses or details)
+		for idx := start; idx <= start+2 && idx <= end; idx++ {
+			included[idx] = true
+		}
+
+		// Last sentence (usually transitions or conclusion comments)
+		if end >= start {
+			included[end] = true
+		}
+
+		// Score-related sentences or score keywords
+		scoreKeywords := []string{"rate", "rating", "point", "pts", "90", "91", "92", "93", "94", "95", "96"}
+		for idx := start; idx <= end; idx++ {
+			sentLower := strings.ToLower(sentences[idx-1])
+			hasKeyword := false
+			for _, kw := range scoreKeywords {
+				if strings.Contains(sentLower, kw) {
+					hasKeyword = true
+					break
+				}
+			}
+			if hasKeyword {
+				included[idx] = true
+			}
+		}
+
+		// Write the included sentences in chronological order
+		for idx := start; idx <= end; idx++ {
+			if included[idx] {
+				sb.WriteString(fmt.Sprintf("[%d] %s\n", idx, sentences[idx-1]))
+			}
+		}
+		sb.WriteString("\n")
+	}
+
+	return sb.String()
 }
 
