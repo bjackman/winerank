@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 )
@@ -55,23 +56,55 @@ type jsonSchema struct {
 	Strict bool            `json:"strict,omitempty"`
 }
 
-const segmentSchema = `{
+const tastingSchema = `{
   "type": "object",
   "properties": {
-    "mappings": {
+    "tasting_segments": {
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
-          "wine_name": { "type": "string" },
-          "sentence_indices": { "type": "string" }
+          "placeholder": { "type": "string" },
+          "start": { "type": "integer" }
         },
-        "required": ["wine_name", "sentence_indices"],
+        "required": ["placeholder", "start"],
         "additionalProperties": false
       }
     }
   },
-  "required": ["mappings"],
+  "required": ["tasting_segments"],
+  "additionalProperties": false
+}`
+
+const revealSchema = `{
+  "type": "object",
+  "properties": {
+    "placeholder_mappings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "placeholder": { "type": "string" },
+          "wine_name": { "type": "string" }
+        },
+        "required": ["placeholder", "wine_name"],
+        "additionalProperties": false
+      }
+    },
+    "reveal_segments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "placeholder": { "type": "string" },
+          "start": { "type": "integer" }
+        },
+        "required": ["placeholder", "start"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["placeholder_mappings", "reveal_segments"],
   "additionalProperties": false
 }`
 
@@ -101,20 +134,61 @@ type chatResponse struct {
 // Extract implements the two-step segmentation & extraction pipeline
 func (c *Client) Extract(ctx context.Context, tf *TranscriptFile, showSegments bool) ([]WineScore, *segmentResponse, error) {
 	sentences := splitIntoSentences(tf.Transcript)
-	var sb strings.Builder
-	for i, s := range sentences {
-		sb.WriteString(fmt.Sprintf("[%d] %s\n", i+1, s))
+	totalSents := len(sentences)
+	if totalSents == 0 {
+		return nil, nil, fmt.Errorf("empty transcript")
 	}
-	numberedTranscript := sb.String()
 
-	log.Printf("Segmenting transcript into individual wine reviews...")
-	segmentReqMsg := BuildSegmentUserMessage(tf.Description, numberedTranscript)
+	splitIdx := (totalSents * 7) / 10
 
-	var segResp segmentResponse
-	err := c.doChatRequest(ctx, segmentSystemPrompt, segmentReqMsg, 2048, segmentSchema, &segResp)
+	tastingEnd := splitIdx + 20
+	if tastingEnd > totalSents {
+		tastingEnd = totalSents
+	}
+
+	revealStart := splitIdx - 20
+	if revealStart < 0 {
+		revealStart = 0
+	}
+
+	// Build Tasting Transcript (original 1-based index numbers prefixing sentences)
+	var tastSb strings.Builder
+	for idx := 0; idx < tastingEnd; idx++ {
+		tastSb.WriteString(fmt.Sprintf("[%d] %s\n", idx+1, sentences[idx]))
+	}
+	tastingTranscript := tastSb.String()
+
+	// Build Reveal Transcript (original 1-based index numbers prefixing sentences)
+	var revSb strings.Builder
+	for idx := revealStart; idx < totalSents; idx++ {
+		revSb.WriteString(fmt.Sprintf("[%d] %s\n", idx+1, sentences[idx]))
+	}
+	revealTranscript := revSb.String()
+
+	log.Printf("Segmenting tasting phase (first half)...")
+	tastingReqMsg := BuildTastingUserMessage(tf.Description, tastingTranscript)
+	var tastResp tastingResponse
+	err := c.doChatRequest(ctx, tastingSystemPrompt, tastingReqMsg, 2048, tastingSchema, &tastResp)
 	if err != nil {
-		return nil, nil, fmt.Errorf("step 1 segmentation failed: %w", err)
+		return nil, nil, fmt.Errorf("tasting phase segmentation failed: %w", err)
 	}
+
+	log.Printf("Segmenting reveal phase (second half)...")
+	revealReqMsg := BuildRevealUserMessage(tf.Description, revealTranscript)
+	var revResp revealResponse
+	err = c.doChatRequest(ctx, revealSystemPrompt, revealReqMsg, 2048, revealSchema, &revResp)
+	if err != nil {
+		return nil, nil, fmt.Errorf("reveal phase segmentation failed: %w", err)
+	}
+
+	tastJSON, _ := json.MarshalIndent(tastResp, "", "  ")
+	revJSON, _ := json.MarshalIndent(revResp, "", "  ")
+	log.Printf("Tasting LLM Response:\n%s\n", string(tastJSON))
+	log.Printf("Reveal LLM Response:\n%s\n", string(revJSON))
+
+	mappings := combineMappings(tastResp, revResp, totalSents)
+	var segResp segmentResponse
+	segResp.Mappings = mappings
 
 	log.Printf("Segmented into %d wine mappings. Extracting scores...", len(segResp.Mappings))
 	if showSegments {
@@ -331,5 +405,177 @@ func parseRanges(s string) []int {
 		}
 	}
 	return indices
+}
+
+func combineMappings(tastResp tastingResponse, revResp revealResponse, totalSentences int) []segmentMapping {
+	placeholderToWine := make(map[string]string)
+	for _, pm := range revResp.PlaceholderMappings {
+		key := cleanPlaceholder(pm.Placeholder)
+		placeholderToWine[key] = pm.WineName
+	}
+
+	wineSentences := make(map[string][]int)
+
+	// Helper to resolve placeholder to wine name
+	resolveWine := func(placeholder string) string {
+		key := cleanPlaceholder(placeholder)
+		if name, exists := placeholderToWine[key]; exists {
+			return name
+		}
+		// Try fallback substring match
+		for _, pm := range revResp.PlaceholderMappings {
+			pClean := cleanPlaceholder(placeholder)
+			pmClean := cleanPlaceholder(pm.Placeholder)
+			if pClean == pmClean || strings.Contains(pClean, pmClean) || strings.Contains(pmClean, pClean) {
+				return pm.WineName
+			}
+		}
+		// Also try substring matching the wine name
+		for _, pm := range revResp.PlaceholderMappings {
+			wName := strings.ToLower(pm.WineName)
+			pName := strings.ToLower(placeholder)
+			if strings.Contains(wName, pName) || strings.Contains(pName, wName) {
+				return pm.WineName
+			}
+		}
+		return ""
+	}
+
+	// Sort tasting segments
+	tastSegs := append([]tastingSegment(nil), tastResp.TastingSegments...)
+	sort.Slice(tastSegs, func(i, j int) bool {
+		return tastSegs[i].Start < tastSegs[j].Start
+	})
+
+	// Sort reveal segments
+	revSegs := append([]revealSegment(nil), revResp.RevealSegments...)
+	sort.Slice(revSegs, func(i, j int) bool {
+		return revSegs[i].Start < revSegs[j].Start
+	})
+
+	minRevealStart := totalSentences + 1
+	if len(revSegs) > 0 {
+		minRevealStart = revSegs[0].Start
+	}
+
+	// Add tasting sentences
+	for i, seg := range tastSegs {
+		wineName := resolveWine(seg.Placeholder)
+		if wineName == "" {
+			continue
+		}
+		start := seg.Start
+		end := minRevealStart - 1
+		if i+1 < len(tastSegs) {
+			end = tastSegs[i+1].Start - 1
+		}
+		if start < 1 {
+			start = 1
+		}
+		if end > totalSentences {
+			end = totalSentences
+		}
+		for sIdx := start; sIdx <= end; sIdx++ {
+			wineSentences[wineName] = append(wineSentences[wineName], sIdx)
+		}
+	}
+
+	// Add reveal sentences
+	for j, seg := range revSegs {
+		wineName := resolveWine(seg.Placeholder)
+		if wineName == "" {
+			continue
+		}
+		start := seg.Start
+		end := totalSentences
+		if j+1 < len(revSegs) {
+			end = revSegs[j+1].Start - 1
+		}
+		if start < 1 {
+			start = 1
+		}
+		if end > totalSentences {
+			end = totalSentences
+		}
+		for sIdx := start; sIdx <= end; sIdx++ {
+			wineSentences[wineName] = append(wineSentences[wineName], sIdx)
+		}
+	}
+
+	// Convert to segmentMapping and format ranges
+	var mappings []segmentMapping
+	for wineName, indices := range wineSentences {
+		uniqueIndices := uniqueAndSort(indices)
+		mappings = append(mappings, segmentMapping{
+			WineName:        wineName,
+			SentenceIndices: formatRanges(uniqueIndices),
+		})
+	}
+
+	// Sort mappings by their first sentence index to preserve chronological order
+	sort.Slice(mappings, func(i, j int) bool {
+		idxI := parseRanges(mappings[i].SentenceIndices)
+		idxJ := parseRanges(mappings[j].SentenceIndices)
+		if len(idxI) == 0 {
+			return false
+		}
+		if len(idxJ) == 0 {
+			return true
+		}
+		return idxI[0] < idxJ[0]
+	})
+
+	return mappings
+}
+
+func uniqueAndSort(slice []int) []int {
+	keys := make(map[int]bool)
+	var list []int
+	for _, entry := range slice {
+		if _, value := keys[entry]; !value {
+			keys[entry] = true
+			list = append(list, entry)
+		}
+	}
+	sort.Ints(list)
+	return list
+}
+
+func cleanPlaceholder(s string) string {
+	s = strings.ToLower(s)
+	s = strings.ReplaceAll(s, " ", "")
+	s = strings.ReplaceAll(s, "-", "")
+	s = strings.ReplaceAll(s, "_", "")
+	s = strings.ReplaceAll(s, "number", "")
+	return s
+}
+
+func formatRanges(indices []int) string {
+	if len(indices) == 0 {
+		return ""
+	}
+	sort.Ints(indices)
+	var ranges []string
+	start := indices[0]
+	prev := indices[0]
+	for i := 1; i < len(indices); i++ {
+		if indices[i] == prev+1 {
+			prev = indices[i]
+		} else {
+			if start == prev {
+				ranges = append(ranges, fmt.Sprintf("%d", start))
+			} else {
+				ranges = append(ranges, fmt.Sprintf("%d-%d", start, prev))
+			}
+			start = indices[i]
+			prev = indices[i]
+		}
+	}
+	if start == prev {
+		ranges = append(ranges, fmt.Sprintf("%d", start))
+	} else {
+		ranges = append(ranges, fmt.Sprintf("%d-%d", start, prev))
+	}
+	return strings.Join(ranges, ", ")
 }
 

@@ -29,11 +29,34 @@ type llmResponse struct {
 }
 
 // Structures for Step 1 segmentation mappings
+type placeholderMapping struct {
+	Placeholder string `json:"placeholder"`
+	WineName    string `json:"wine_name"`
+}
+
+type tastingSegment struct {
+	Placeholder string `json:"placeholder"`
+	Start       int    `json:"start"` // 1-based start sentence index
+}
+
+type tastingResponse struct {
+	TastingSegments []tastingSegment `json:"tasting_segments"`
+}
+
+type revealSegment struct {
+	Placeholder string `json:"placeholder"`
+	Start       int    `json:"start"` // 1-based start sentence index
+}
+
+type revealResponse struct {
+	PlaceholderMappings []placeholderMapping `json:"placeholder_mappings"`
+	RevealSegments      []revealSegment      `json:"reveal_segments"`
+}
+
 type segmentMapping struct {
 	WineName        string `json:"wine_name"`
 	SentenceIndices string `json:"sentence_indices"` // comma-separated ranges or numbers, e.g. "48-67, 84-87"
 }
-
 
 type segmentResponse struct {
 	Mappings []segmentMapping `json:"mappings"`

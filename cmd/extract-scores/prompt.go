@@ -5,30 +5,69 @@ import (
 	"strings"
 )
 
-const segmentSystemPrompt = `You are a wine review transcript segmenter. You will be given:
-1. DESCRIPTION: A list of wines reviewed in the video (use these exact names).
-2. NUMBERED TRANSCRIPT: The transcript of the video, split into sentences, with each sentence prefixed by a line number in brackets like [1], [2], etc.
+const tastingSystemPrompt = `You are a wine tasting segmenter. You will be given:
+1. DESCRIPTION: A list of wines reviewed in the video.
+2. NUMBERED TRANSCRIPT: A numbered transcript from the first half of a blind wine tasting video.
+   Each sentence is prefixed with a line number in brackets, e.g. [1], [2], etc.
 
 Your task:
-Identify all sentences in the transcript that relate to each wine. Note that this is often a blind tasting:
-- In the first half, the reviewer tastes and rates the wines, calling them "Wine 1", "Wine 2", etc.
-- In the second half, the reviewer uncloaks/reveals the bottles (e.g. "Wine 1 was the Daou Vineyards Cabernet...").
-You must match each wine name from the description to BOTH its blind tasting sentences (where it is evaluated under a placeholder) and its uncloaking/reveal sentences.
+Count the number of wines listed in the DESCRIPTION.
+Identify the exact sentence index where the reviewer begins tasting/discussing each placeholder wine (e.g. "Wine 1", "Wine 2", "wine number three", etc.) in the transcript.
+You must find all tasting segments (e.g., Wine 1, Wine 2, Wine 3, etc.). The number of tasting segments should match the number of wines in the DESCRIPTION.
+Each tasting starts when he pours the glass or takes the first sip, and runs continuously until the next wine tasting (or a sponsor ad) starts.
 
 Return ONLY a JSON object with this schema:
 {
-  "mappings": [
+  "tasting_segments": [
     {
-      "wine_name": "Exact wine name from description",
-      "sentence_indices": "10-13, 85-87"
+      "placeholder": "Wine 1",
+      "start": 26
+    },
+    {
+      "placeholder": "Wine 2",
+      "start": 48
     }
   ]
 }
 
 Rules:
-- Include all sentences where the wine or its placeholder (like "wine number one" or "wine 1") is discussed.
-- Ensure the wine names match the description exactly.
-- Represent the sentence indices as a comma-separated list of ranges or individual numbers, e.g. "10-13, 85-87, 90". Do not output a list of numbers, use a single string.
+- Be precise: Locate the exact sentence index where the topic shifts to a new wine.
+- The "tasting_segments" array must be in chronological order by "start" index.
+- Ensure you list all the tasting segments for all the wines in the DESCRIPTION. Do not stop after Wine 2.
+- Return ONLY the JSON object, no other text.`
+
+const revealSystemPrompt = `You are a wine reveal segmenter. You will be given:
+1. DESCRIPTION: A list of wines reviewed in the video (use these exact names).
+2. NUMBERED TRANSCRIPT: A numbered transcript from the second half of a blind wine tasting video where the bottles are uncloaked/revealed.
+   Each sentence is prefixed with a line number in brackets, e.g. [1], [2], etc.
+
+Your task:
+1. Match each tasting placeholder (e.g. "Wine 1", "Wine 2", "wine number three", etc.) to the actual wine name from the DESCRIPTION.
+2. Identify the exact sentence index where the reviewer begins uncloaking/revealing each placeholder wine (e.g. "wine number one was...", "wine 2 was...").
+
+Return ONLY a JSON object with this schema:
+{
+  "placeholder_mappings": [
+    {
+      "placeholder": "Wine 1",
+      "wine_name": "Exact wine name from description"
+    }
+  ],
+  "reveal_segments": [
+    {
+      "placeholder": "Wine 1",
+      "start": 244
+    },
+    {
+      "placeholder": "Wine 2",
+      "start": 250
+    }
+  ]
+}
+
+Rules:
+- Be precise: Locate the exact sentence index where the reviewer begins discussing the reveal of that wine (often starting with "So wine number one was..." or "Let's see what it is...").
+- The "reveal_segments" array must be in chronological order by "start" index.
 - Return ONLY the JSON object, no other text.`
 
 
@@ -61,6 +100,14 @@ Rules:
 - Return ONLY the JSON object, no other text.`
 
 func BuildSegmentUserMessage(description, numberedTranscript string) string {
+	return fmt.Sprintf("DESCRIPTION:\n%s\n\nNUMBERED TRANSCRIPT:\n%s", cleanDescription(description), numberedTranscript)
+}
+
+func BuildTastingUserMessage(description, numberedTranscript string) string {
+	return fmt.Sprintf("DESCRIPTION:\n%s\n\nNUMBERED TRANSCRIPT:\n%s", cleanDescription(description), numberedTranscript)
+}
+
+func BuildRevealUserMessage(description, numberedTranscript string) string {
 	return fmt.Sprintf("DESCRIPTION:\n%s\n\nNUMBERED TRANSCRIPT:\n%s", cleanDescription(description), numberedTranscript)
 }
 
