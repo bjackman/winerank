@@ -155,7 +155,8 @@ func main() {
 			}
 		} else {
 			log.Printf("[%d/%d] Querying LLM for %s...", i+1, len(videoIDs), videoID)
-			wines, _, err = client.Extract(ctx, tf, *review)
+			var segResp *segmentResponse
+			wines, segResp, err = client.Extract(ctx, tf)
 			if err != nil {
 				log.Printf("[%d/%d] Error processing %s: %v", i+1, len(videoIDs), videoID, err)
 				if exists {
@@ -186,6 +187,22 @@ func main() {
 						log.Printf("  - %s: Auto-approved from ground truth", w.Name)
 					} else {
 						w.ReviewStatus = "pending"
+					}
+				}
+
+				// Show segmentation output with optional GT comparison
+				if segResp != nil {
+					sentences := splitIntoSentences(tf.Transcript)
+					got := classifySentencesFromResponse(*segResp, len(sentences))
+					var segGT *segmentGroundTruth
+					if g, err := parseSegmentGroundTruth(segmentGroundTruthPath(videoID)); err == nil {
+						segGT = g
+					}
+					if *review {
+						printSegmentedTranscriptUnified(videoID, tf, got, *segResp, segGT)
+					} else if segGT != nil {
+						evalResult := compareSegmentation(got, segGT, len(sentences), sentences, *segResp)
+						printSegmentEval(videoID, evalResult)
 					}
 				}
 			}
@@ -641,36 +658,108 @@ func viewInPager(text string) {
 	}
 }
 
-func printSegmentedTranscript(tf *TranscriptFile, mappings []segmentMapping) {
+// classificationLabel builds a display label for a segment classification,
+// enriched with the actual wine name when available.
+func classificationLabel(c segmentClassification, wineNames map[string]string) string {
+	if c.Phase == "unmapped" || c.Phase == "" {
+		return "Unmapped"
+	}
+	label := c.Placeholder + " " + c.Phase
+	if name := wineNames[c.Placeholder]; name != "" {
+		label += ": " + name
+	}
+	return label
+}
+
+// printSegmentedTranscriptUnified prints the transcript with segment delimiters from the
+// model, showing ground-truth classifications inline at each boundary. When the model and
+// GT agree the header is printed normally; when they differ both are printed in red with
+// the model's label indented.
+func printSegmentedTranscriptUnified(videoID string, tf *TranscriptFile, got map[int]segmentClassification, segResp segmentResponse, gt *segmentGroundTruth) {
 	sentences := splitIntoSentences(tf.Transcript)
-	sentenceWines := make(map[int][]string)
-	for _, m := range mappings {
-		indices := parseRanges(m.SentenceIndices)
-		for _, idx := range indices {
-			sentenceWines[idx] = append(sentenceWines[idx], m.WineName)
+
+	modelWineNames := make(map[string]string)
+	for _, pm := range segResp.PlaceholderMappings {
+		modelWineNames[normalizePlaceholder(pm.Placeholder)] = pm.WineName
+	}
+
+	gtWineNames := make(map[string]string)
+	if gt != nil {
+		for k, v := range gt.PlaceholderMappings {
+			gtWineNames[k] = v
 		}
 	}
 
-	fmt.Println("\n\x1b[1;34m============================================================\x1b[0m")
-	fmt.Println("\x1b[1;34m                  SEGMENTED TRANSCRIPT                      \x1b[0m")
+	fmt.Println()
+	fmt.Println("\x1b[1;34m============================================================\x1b[0m")
+	fmt.Printf("\x1b[1;34m  SEGMENTED TRANSCRIPT: %s\x1b[0m\n", videoID)
 	fmt.Println("\x1b[1;34m============================================================\x1b[0m")
 
-	var prevClassification string
+	// Sentinel values that won't match any real classification.
+	prevModel := segmentClassification{Phase: ""}
+	prevGT := segmentClassification{Phase: ""}
+
 	for i := 1; i <= len(sentences); i++ {
-		wines := sentenceWines[i]
-		var currentClassification string
-		if len(wines) == 0 {
-			currentClassification = "General Discussion / Unmapped"
-		} else {
-			currentClassification = "Wine: " + strings.Join(wines, " & ")
+		modelClass := got[i]
+		if modelClass.Phase == "" {
+			modelClass = segmentClassification{Phase: "unmapped"}
 		}
 
-		if i == 1 || currentClassification != prevClassification {
-			fmt.Printf("\n\x1b[1;35m=== %s ===\x1b[0m\n\n", currentClassification)
-			prevClassification = currentClassification
+		hasGT := false
+		var gtClass segmentClassification
+		if gt != nil {
+			if gc, ok := gt.Sentences[i]; ok {
+				gtClass = gc
+				hasGT = true
+			}
+		}
+
+		modelChanged := modelClass != prevModel
+		gtChanged := hasGT && gtClass != prevGT
+
+		if i == 1 || modelChanged || gtChanged {
+			modelLabel := classificationLabel(modelClass, modelWineNames)
+			fmt.Println()
+			if !hasGT || (modelClass.Phase == gtClass.Phase && modelClass.Placeholder == gtClass.Placeholder) {
+				fmt.Printf("\x1b[1;35m=== %s ===\x1b[0m\n\n", modelLabel)
+			} else {
+				gtLabel := classificationLabel(gtClass, gtWineNames)
+				fmt.Printf("\x1b[31mGT:    === %s ===\x1b[0m\n", gtLabel)
+				fmt.Printf("\x1b[31m  MODEL: === %s ===\x1b[0m\n\n", modelLabel)
+			}
 		}
 
 		fmt.Printf("[%d] %s\n", i, sentences[i-1])
+
+		prevModel = modelClass
+		if hasGT {
+			prevGT = gtClass
+		}
 	}
+
+	if gt != nil {
+		evalResult := compareSegmentation(got, gt, len(sentences), sentences, segResp)
+		accuracy := float64(0)
+		if evalResult.TotalSentences > 0 {
+			accuracy = float64(evalResult.Correct) / float64(evalResult.TotalSentences) * 100
+		}
+		color := "\x1b[32m"
+		if accuracy < 95 {
+			color = "\x1b[33m"
+		}
+		if accuracy < 80 {
+			color = "\x1b[31m"
+		}
+		fmt.Println()
+		fmt.Printf("\x1b[1mSentence accuracy:\x1b[0m %s%d/%d (%.1f%%)\x1b[0m\n", color, evalResult.Correct, evalResult.TotalSentences, accuracy)
+		if evalResult.MappingTotal > 0 {
+			mColor := "\x1b[32m"
+			if evalResult.MappingCorrect < evalResult.MappingTotal {
+				mColor = "\x1b[31m"
+			}
+			fmt.Printf("\x1b[1mMapping accuracy:\x1b[0m  %s%d/%d\x1b[0m\n", mColor, evalResult.MappingCorrect, evalResult.MappingTotal)
+		}
+	}
+
 	fmt.Println("\x1b[1;34m============================================================\x1b[0m\n")
 }

@@ -124,7 +124,7 @@ type chatResponse struct {
 }
 
 // Extract implements the single-pass segmentation & score extraction pipeline
-func (c *Client) Extract(ctx context.Context, tf *TranscriptFile, showSegments bool) ([]WineScore, *segmentResponse, error) {
+func (c *Client) Extract(ctx context.Context, tf *TranscriptFile) ([]WineScore, *segmentResponse, error) {
 	sentences := splitIntoSentences(tf.Transcript)
 	totalSents := len(sentences)
 	if totalSents == 0 {
@@ -152,9 +152,6 @@ func (c *Client) Extract(ctx context.Context, tf *TranscriptFile, showSegments b
 	mappings := combineMappings(segResp, totalSents)
 
 	log.Printf("Segmented into %d wine mappings. Extracting scores...", len(mappings))
-	if showSegments {
-		printSegmentedTranscript(tf, mappings)
-	}
 
 	var wines []WineScore
 	for idx, m := range mappings {
