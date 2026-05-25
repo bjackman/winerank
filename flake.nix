@@ -8,7 +8,10 @@
   outputs = { self, nixpkgs, flake-utils }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
+        pkgs = import nixpkgs {
+          inherit system;
+          config.allowUnfree = true;
+        };
 
         pythonEnvScraper = pkgs.python3.withPackages (ps: [
           ps.requests
@@ -73,6 +76,10 @@
 
         devShells.default = pkgs.mkShell {
           inputsFrom = [ self.packages.${system}.get-transcripts ];
+          # llama-vulkan is also a viable alternative that doesn't require
+          # building from source. But the CUDA version performs better on my
+          # 3070Ti.
+          packages = with pkgs; [ (llama-cpp.override { cudaSupport = true; }) ];
         };
       }
     );
