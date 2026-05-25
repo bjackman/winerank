@@ -217,15 +217,34 @@ func main() {
 			} else {
 				// Initialize new wines.
 				// Perform auto-approval if the wine and score matches ground truth.
+				gtMatches, gtTotal := 0, 0
 				for idx := range wines {
 					w := &wines[idx]
 					gtRec, hasGT := gtMap[videoID][w.Name]
-					if hasGT && scoresMatch(w.Score, gtRec.Score) {
-						w.ReviewStatus = "approved"
-						log.Printf("  - %s: Auto-approved from ground truth", w.Name)
+					if hasGT {
+						gtTotal++
+						if scoresMatch(w.Score, gtRec.Score) {
+							w.ReviewStatus = "approved"
+							log.Printf("  - %s: Auto-approved from ground truth", w.Name)
+							gtMatches++
+						} else {
+							w.ReviewStatus = "pending"
+							extracted := "no score"
+							if w.Score != nil {
+								extracted = fmt.Sprintf("%d", *w.Score)
+							}
+							gt := "no score"
+							if gtRec.Score != nil {
+								gt = fmt.Sprintf("%d", *gtRec.Score)
+							}
+							fmt.Printf("  [MISMATCH] %s: extracted=%s GT=%s\n", w.Name, extracted, gt)
+						}
 					} else {
 						w.ReviewStatus = "pending"
 					}
+				}
+				if gtTotal > 0 {
+					fmt.Printf("Score extraction: %d/%d matched GT (%.0f%%)\n", gtMatches, gtTotal, float64(gtMatches)/float64(gtTotal)*100)
 				}
 
 				if segResp != nil {
