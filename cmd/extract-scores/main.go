@@ -744,7 +744,10 @@ func classificationLabel(c segmentClassification, wineNames map[string]string) s
 	if c.Phase == "unmapped" || c.Phase == "" {
 		return "Unmapped"
 	}
-	label := c.Placeholder + " " + c.Phase
+	label := c.Placeholder
+	if c.Phase != "open" {
+		label += " " + c.Phase
+	}
 	if name := wineNames[c.Placeholder]; name != "" {
 		label += ": " + name
 	}

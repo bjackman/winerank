@@ -45,6 +45,7 @@ type revealSegment struct {
 }
 
 type segmentResponse struct {
+	VideoType           string               `json:"video_type"` // "blind" or "open"
 	PlaceholderMappings []placeholderMapping `json:"placeholder_mappings"`
 	TastingSegments     []tastingSegment     `json:"tasting_segments"`
 	RevealSegments      []revealSegment      `json:"reveal_segments"`

@@ -59,6 +59,7 @@ type jsonSchema struct {
 const segmentSchema = `{
   "type": "object",
   "properties": {
+    "video_type": { "type": "string", "enum": ["blind", "open"] },
     "placeholder_mappings": {
       "type": "array",
       "items": {
@@ -96,7 +97,7 @@ const segmentSchema = `{
       }
     }
   },
-  "required": ["placeholder_mappings", "tasting_segments", "reveal_segments"],
+  "required": ["video_type", "placeholder_mappings", "tasting_segments", "reveal_segments"],
   "additionalProperties": false
 }`
 

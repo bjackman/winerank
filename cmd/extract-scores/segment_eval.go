@@ -11,7 +11,7 @@ import (
 
 // segmentClassification represents the expected segment for a sentence.
 type segmentClassification struct {
-	Phase       string // "blind", "reveal", or "unmapped"
+	Phase       string // "blind", "reveal", "open", or "unmapped"
 	Placeholder string // e.g. "Wine 1" (empty for unmapped)
 }
 
@@ -21,6 +21,8 @@ func (c segmentClassification) String() string {
 		return c.Placeholder + " blind"
 	case "reveal":
 		return c.Placeholder + " reveal"
+	case "open":
+		return c.Placeholder + " open"
 	default:
 		return "Unmapped"
 	}
@@ -39,6 +41,7 @@ var (
 	gtSentenceRe = regexp.MustCompile(`^\[(\d+)\]`)
 	gtBlindRe    = regexp.MustCompile(`(?i)^Wine\s+(\d+)\s+blind$`)
 	gtRevealRe   = regexp.MustCompile(`(?i)^Wine\s+(\d+)\s+reveal:\s*(.+)$`)
+	gtOpenRe     = regexp.MustCompile(`(?i)^Wine\s+(\d+)\s+open:\s*(.+)$`)
 )
 
 // parseSegmentGroundTruth parses a segment ground truth file.
@@ -74,6 +77,11 @@ func parseSegmentGroundTruth(path string) (*segmentGroundTruth, error) {
 				wineName := strings.TrimSpace(rm[2])
 				current = segmentClassification{Phase: "reveal", Placeholder: placeholder}
 				gt.PlaceholderMappings[placeholder] = wineName
+			} else if om := gtOpenRe.FindStringSubmatch(content); om != nil {
+				placeholder := fmt.Sprintf("Wine %s", om[1])
+				wineName := strings.TrimSpace(om[2])
+				current = segmentClassification{Phase: "open", Placeholder: placeholder}
+				gt.PlaceholderMappings[placeholder] = wineName
 			}
 			continue
 		}
@@ -90,9 +98,14 @@ func parseSegmentGroundTruth(path string) (*segmentGroundTruth, error) {
 
 // classifySentencesFromResponse converts a segmentResponse into per-sentence
 // classifications, using the same logic as combineMappings but preserving the
-// blind/reveal phase distinction.
+// blind/reveal/open phase distinction.
 func classifySentencesFromResponse(segResp segmentResponse, totalSentences int) map[int]segmentClassification {
 	result := make(map[int]segmentClassification)
+
+	tastingPhase := "blind"
+	if segResp.VideoType == "open" {
+		tastingPhase = "open"
+	}
 
 	// Sort tasting segments by start index
 	tastSegs := append([]tastingSegment(nil), segResp.TastingSegments...)
@@ -121,7 +134,7 @@ func classifySentencesFromResponse(segResp segmentResponse, totalSentences int) 
 		placeholder := normalizePlaceholder(seg.Placeholder)
 		for sIdx := seg.Start; sIdx <= end && sIdx <= totalSentences; sIdx++ {
 			result[sIdx] = segmentClassification{
-				Phase:       "blind",
+				Phase:       tastingPhase,
 				Placeholder: placeholder,
 			}
 		}
