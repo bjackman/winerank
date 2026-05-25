@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"sort"
@@ -224,7 +225,7 @@ func main() {
 					showSnippetContext(tf.Transcript, w.MatchingSnippet)
 
 					for {
-						fmt.Print("Is this extraction correct? [y/n/q]: ")
+						fmt.Print("Is this extraction correct? [y/n/t/q]: ")
 						input, err := reader.ReadString('\n')
 						if err != nil {
 							input = "q"
@@ -254,6 +255,20 @@ func main() {
 							w.ReviewStatus = "rejected"
 							fmt.Println("-> Rejected.")
 							break
+						} else if input == "t" {
+							viewInPager(tf.Transcript)
+
+							// Reprint context after exiting pager
+							fmt.Println(strings.Repeat("=", 60))
+							fmt.Printf("Wine:     %s\n", w.Name)
+							fmt.Printf("Producer: %s\n", w.Producer)
+							fmt.Printf("Vintage:  %s\n", w.Vintage)
+							fmt.Printf("Region:   %s\n", w.Region)
+							fmt.Printf("Score:    %s\n", scoreStr)
+							fmt.Printf("Summary:  %s\n", w.NotesSummary)
+							showDescriptionSnippet(tf.Description, w.Name)
+							showSnippetContext(tf.Transcript, w.MatchingSnippet)
+							continue
 						} else if input == "q" {
 							fmt.Println("Quitting review and saving progress...")
 							// Save ground truth progress
@@ -573,5 +588,46 @@ func showDescriptionSnippet(description, wineName string) {
 		fmt.Println("---------------------------")
 	} else {
 		fmt.Printf("\n--- DESCRIPTION CONTEXT ---\n[Wine name not matched in description]\n---------------------------\n")
+	}
+}
+
+func viewInPager(text string) {
+	tmpFile, err := os.CreateTemp("", "winerank-transcript-*.txt")
+	if err != nil {
+		fmt.Println("\n--- FULL TRANSCRIPT ---")
+		fmt.Println(text)
+		fmt.Println("-----------------------\n")
+		return
+	}
+	defer os.Remove(tmpFile.Name())
+	defer tmpFile.Close()
+
+	if _, err := tmpFile.WriteString(text); err != nil {
+		fmt.Println("\n--- FULL TRANSCRIPT ---")
+		fmt.Println(text)
+		fmt.Println("-----------------------\n")
+		return
+	}
+
+	pager := os.Getenv("PAGER")
+	if pager == "" {
+		pager = "less"
+	}
+
+	args := strings.Fields(pager)
+	if len(args) == 0 {
+		args = []string{"less"}
+	}
+	args = append(args, tmpFile.Name())
+
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		fmt.Println("\n--- FULL TRANSCRIPT ---")
+		fmt.Println(text)
+		fmt.Println("-----------------------\n")
 	}
 }
