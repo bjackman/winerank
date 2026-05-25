@@ -14,6 +14,14 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
 
+        yt-dlp = pkgs.yt-dlp.overrideAttrs (oldAttrs: rec {
+          version = "2026.05.24.234402";
+          src = pkgs.fetchurl {
+            url = "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/download/${version}/yt-dlp.tar.gz";
+            hash = "sha256-q3LDSJiVnOmCeFusgoT3mm1kpZk1xJqmYoalL2K/M+o=";
+          };
+        });
+
         # Python environment with the transcript API library
         pythonEnv = pkgs.python3.withPackages (ps: [
           ps.youtube-transcript-api
@@ -60,7 +68,7 @@
 
         fetch-transcripts = pkgs.writeShellApplication {
           name = "fetch-transcripts";
-          runtimeInputs = [ pkgs.yt-dlp pythonEnv ];
+          runtimeInputs = [ yt-dlp pythonEnv ];
           text = ''
             exec python3 ${./scripts/fetch_transcripts.py} "$@"
           '';
@@ -81,7 +89,7 @@
         };
 
         devShells.default = pkgs.mkShell {
-          packages = [ pkgs.yt-dlp pythonEnv ];
+          packages = [ yt-dlp pythonEnv ];
           shellHook = ''
             echo "winerank dev shell ready."
             echo ""
