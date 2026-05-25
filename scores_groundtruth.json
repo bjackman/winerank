@@ -1,0 +1,22 @@
+{
+  "ground_truths": [
+    {
+      "video_id": "25ld_xwvGDk",
+      "wine_name": "2022 Daou Vineyards Cabernet Sauvignon, Paso Robles, USA",
+      "transcript_snippet": "So, I'm going to rate this 91 points.",
+      "score": 91
+    },
+    {
+      "video_id": "25ld_xwvGDk",
+      "wine_name": "2023 Te Mata Estate 'Awatea' Cabernets - Merlot, Hawke's Bay, New Zealand",
+      "transcript_snippet": "I yeah, I'm not quite sure where to put this. So, this could be from Bordeaux. It could also be from South Africa, from a cooler pocket where they really focus on producing classic wines. Could also be from New Zealand, somewhere like Hawks Bay, for example, where they really produce those linear and fresh and crisp wines. But it's definitely a wine that is right up my alley. I quite enjoy it. I would rate it 91 points.",
+      "score": 91
+    },
+    {
+      "video_id": "25ld_xwvGDk",
+      "wine_name": "2017 Polish Hill River Cabernet Merlot, Australia",
+      "transcript_snippet": "I'm going to rate this 94 points. I think it's absolutely delicious.",
+      "score": 94
+    }
+  ]
+}
