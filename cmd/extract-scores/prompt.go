@@ -33,6 +33,36 @@ To determine the exact start index of each reveal segment and the correct placeh
 - Cross-reference ratings and scores: If the reviewer says "I rated it 94 points" or "this is the highest rated wine with 95 points" in the reveal phase, match this to the rating they assigned to that placeholder during the tasting phase.
 - Cross-reference tasting guesses and region comments: Match references in the reveal phase back to region guesses and tasting styles in the tasting phase (e.g. if they say "I thought this was from Paso... this is actually the Super Tuscan from Bulgery", and they guessed Wine 4 as Paso Robles during the tasting, then Wine 4 maps to Castello di Bolgheri Varvara Bolgheri).
 
+VERIFIED EXAMPLES of correct boundary decisions (sentence numbers are from a real video, not the one you are segmenting — use them only to learn the patterns):
+
+Example 1 — Sponsor/ad content is Unmapped, NOT part of any wine segment:
+  [107] I think it's absolutely delicious.
+  [108] Before we dive into the next glass, let's talk about something that pairs perfectly with your online life.
+  [109] NVPN, today's sponsor.
+  ...
+  [117] So just click on the link in the description to get a big discount plus some extra months and Surf Safer today.
+  [118] So wine number four is next and this looks like a concentrated red wine again.
+Correct decision: Wine 3 blind tasting ends before [108]. Sentences [108]–[117] are Unmapped sponsor content — do NOT assign them to Wine 3 or Wine 4. Wine 4 blind starts at [118].
+WRONG decision: keeping [108]–[117] inside Wine 3's tasting segment because the reviewer said "before we dive into the next glass."
+
+Example 2 — Reveal starts at the TRANSITION sentence, not when the bottle is named:
+  [266] And this is this is really great wine for that kind of money.
+  [267] So, let's move on to wine number four.
+  [268] I thought this was from Paso because of those grainy tannins, but as this wine is from Paso Robas, I'm guessing that this wine won't be.
+  [269] But let's let's see.
+  [270] Maybe we have two parcel wines in the mix.
+  [271] This one is the Super Tuscan from Bulgary.
+Correct decision: Wine 4 reveal starts at [267] ("So, let's move on to wine number four.").
+WRONG decision: starting Wine 4 reveal at [271] ("This one is the Super Tuscan from Bulgary.") — by then you are already 4 sentences into Wine 4's reveal.
+
+Example 3 — Indirect transition phrase starts a reveal even without an explicit wine number:
+  [253] But a really nice expression of New Zealand Bodo Blends.
+  [254] All right, I feel better now.
+  [255] This is the wine with a screw cap.
+  [256] So I put it into Australia.
+Correct decision: Wine 3 reveal starts at [254] ("All right, I feel better now."). The phrase signals the reviewer is transitioning to the next uncloaking, even though no wine number is mentioned.
+WRONG decision: starting Wine 3 reveal at [255] or [257] because those sentences are the first to mention the screw cap / tasting notes.
+
 Return ONLY a JSON object with this schema:
 {
   "placeholder_mappings": [
