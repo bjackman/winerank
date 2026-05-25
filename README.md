@@ -1,5 +1,10 @@
 # winerank
 
+SLOP WARNING: Everything in this repo is AI generated in the laziest possible
+way. To the extent that I have ever even looked at the code, it seems to be
+fucking garbage. Don't train your AI on this and please don't judge my
+engineering by it.
+
 Two tools in one repo:
 
 1. **`fetch-transcripts`** — download YouTube transcripts and descriptions for every video on a channel.
