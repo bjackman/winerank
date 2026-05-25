@@ -5,8 +5,30 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
+
+var asrNumberRe = regexp.MustCompile(`\b(10|20|30|40|50|60|70|80|90)\s+(one|two|three|four|five|six|seven|eight|nine)\b`)
+
+var asrUnitWords = map[string]int{
+	"one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+	"six": 6, "seven": 7, "eight": 8, "nine": 9,
+}
+
+// Workaround for the failure mode when the transcript says "90 one" and the
+// extractor sees this as 90: just replace stuff like "90 one" with "91".
+func normalizeASRNumbers(s string) string {
+	return asrNumberRe.ReplaceAllStringFunc(s, func(match string) string {
+		parts := asrNumberRe.FindStringSubmatch(match)
+		if len(parts) != 3 {
+			return match
+		}
+		var decade int
+		fmt.Sscanf(parts[1], "%d", &decade)
+		return fmt.Sprintf("%d", decade+asrUnitWords[parts[2]])
+	})
+}
 
 // TranscriptFile represents the contents of a transcript JSON file.
 type TranscriptFile struct {
@@ -24,6 +46,7 @@ func LoadTranscript(path string) (*TranscriptFile, error) {
 	if err := json.Unmarshal(data, &tf); err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", path, err)
 	}
+	tf.Transcript = normalizeASRNumbers(tf.Transcript)
 	return &tf, nil
 }
 
