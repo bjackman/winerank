@@ -49,6 +49,7 @@
             echo "Done → $OUT"
           '';
         };
+
       in
       {
         packages = rec {
@@ -71,6 +72,12 @@
             ];
           };
 
+          extract-scores = pkgs.buildGoModule {
+            pname = "extract-scores";
+            version = "0.1.0";
+            src = ./cmd/extract-scores;
+            vendorHash = null;
+          };
           default = get-transcripts;
         };
 
