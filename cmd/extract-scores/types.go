@@ -28,6 +28,27 @@ type llmResponse struct {
 	Wines []WineScore `json:"wines"`
 }
 
+// Structures for Step 1 segmentation mappings
+type segmentMapping struct {
+	WineName        string `json:"wine_name"`
+	SentenceIndices string `json:"sentence_indices"` // comma-separated ranges or numbers, e.g. "48-67, 84-87"
+}
+
+
+type segmentResponse struct {
+	Mappings []segmentMapping `json:"mappings"`
+}
+
+// Structures for Step 2 score extraction response
+type extractResponse struct {
+	Producer        string `json:"producer"`
+	Vintage         string `json:"vintage"`
+	Region          string `json:"region"`
+	Score           *int   `json:"score"`
+	NotesSummary    string `json:"notes_summary"`
+	MatchingSnippet string `json:"matching_snippet"`
+}
+
 // Structures for final scores.json output (omitting internal review metadata)
 type FinalWineScore struct {
 	Name         string `json:"name"`

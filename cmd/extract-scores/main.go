@@ -25,12 +25,15 @@ func main() {
 	review := flag.Bool("review", false, "interactive review mode to approve/reject extracted scores")
 	flag.Parse()
 
+	var normalExit bool
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
 	go func() {
 		<-ctx.Done()
-		os.Exit(1)
+		if !normalExit {
+			os.Exit(1)
+		}
 	}()
 
 	// Load ground truths
@@ -123,8 +126,8 @@ func main() {
 					hasPending = false
 				} else {
 					for _, w := range res.Wines {
-						gtScore, hasGT := gtMap[videoID][w.Name]
-						if !hasGT || !scoresMatch(w.Score, gtScore) {
+						gtRec, hasGT := gtMap[videoID][w.Name]
+						if !hasGT || !scoresMatch(w.Score, gtRec.Score) {
 							hasPending = true
 							break
 						}
@@ -152,7 +155,7 @@ func main() {
 			}
 		} else {
 			log.Printf("[%d/%d] Querying LLM for %s...", i+1, len(videoIDs), videoID)
-			wines, err = client.Extract(ctx, tf)
+			wines, _, err = client.Extract(ctx, tf, *review)
 			if err != nil {
 				log.Printf("[%d/%d] Error processing %s: %v", i+1, len(videoIDs), videoID, err)
 				if exists {
@@ -177,8 +180,8 @@ func main() {
 				// Perform auto-approval if the wine and score matches ground truth.
 				for idx := range wines {
 					w := &wines[idx]
-					gtScore, hasGT := gtMap[videoID][w.Name]
-					if hasGT && scoresMatch(w.Score, gtScore) {
+					gtRec, hasGT := gtMap[videoID][w.Name]
+					if hasGT && scoresMatch(w.Score, gtRec.Score) {
 						w.ReviewStatus = "approved"
 						log.Printf("  - %s: Auto-approved from ground truth", w.Name)
 					} else {
@@ -246,9 +249,14 @@ func main() {
 							// Update ground truth records
 							gtRecords = updateGroundTruth(gtRecords, videoID, w.Name, actualSnippet, w.Score)
 							if gtMap[videoID] == nil {
-								gtMap[videoID] = make(map[string]*int)
+								gtMap[videoID] = make(map[string]GroundTruthRecord)
 							}
-							gtMap[videoID][w.Name] = w.Score
+							gtMap[videoID][w.Name] = GroundTruthRecord{
+								VideoID:           videoID,
+								WineName:          w.Name,
+								TranscriptSnippet: actualSnippet,
+								Score:             w.Score,
+							}
 
 							break
 						} else if input == "n" {
@@ -354,6 +362,7 @@ func main() {
 	if err := SaveGroundTruth(*gtPath, gtRecords); err != nil {
 		log.Printf("Error saving ground truth: %v", err)
 	}
+	normalExit = true
 }
 
 func findSnippetIndex(transcript, snippet string) (int, int) {
@@ -475,8 +484,8 @@ func saveAndQuit(currentResults []FinalVideoResult, existingResults map[string]F
 	log.Printf("Wrote %d result(s) to %s", len(finalResults), outputPath)
 }
 
-func LoadGroundTruth(path string) (map[string]map[string]*int, []GroundTruthRecord, error) {
-	m := make(map[string]map[string]*int)
+func LoadGroundTruth(path string) (map[string]map[string]GroundTruthRecord, []GroundTruthRecord, error) {
+	m := make(map[string]map[string]GroundTruthRecord)
 	var records []GroundTruthRecord
 
 	data, err := os.ReadFile(path)
@@ -495,9 +504,9 @@ func LoadGroundTruth(path string) (map[string]map[string]*int, []GroundTruthReco
 	records = gt.Records
 	for _, rec := range records {
 		if m[rec.VideoID] == nil {
-			m[rec.VideoID] = make(map[string]*int)
+			m[rec.VideoID] = make(map[string]GroundTruthRecord)
 		}
-		m[rec.VideoID][rec.WineName] = rec.Score
+		m[rec.VideoID][rec.WineName] = rec
 	}
 	return m, records, nil
 }
@@ -630,4 +639,38 @@ func viewInPager(text string) {
 		fmt.Println(text)
 		fmt.Println("-----------------------\n")
 	}
+}
+
+func printSegmentedTranscript(tf *TranscriptFile, mappings []segmentMapping) {
+	sentences := splitIntoSentences(tf.Transcript)
+	sentenceWines := make(map[int][]string)
+	for _, m := range mappings {
+		indices := parseRanges(m.SentenceIndices)
+		for _, idx := range indices {
+			sentenceWines[idx] = append(sentenceWines[idx], m.WineName)
+		}
+	}
+
+	fmt.Println("\n\x1b[1;34m============================================================\x1b[0m")
+	fmt.Println("\x1b[1;34m                  SEGMENTED TRANSCRIPT                      \x1b[0m")
+	fmt.Println("\x1b[1;34m============================================================\x1b[0m")
+
+	var prevClassification string
+	for i := 1; i <= len(sentences); i++ {
+		wines := sentenceWines[i]
+		var currentClassification string
+		if len(wines) == 0 {
+			currentClassification = "General Discussion / Unmapped"
+		} else {
+			currentClassification = "Wine: " + strings.Join(wines, " & ")
+		}
+
+		if i == 1 || currentClassification != prevClassification {
+			fmt.Printf("\n\x1b[1;35m=== %s ===\x1b[0m\n\n", currentClassification)
+			prevClassification = currentClassification
+		}
+
+		fmt.Printf("[%d] %s\n", i, sentences[i-1])
+	}
+	fmt.Println("\x1b[1;34m============================================================\x1b[0m\n")
 }
