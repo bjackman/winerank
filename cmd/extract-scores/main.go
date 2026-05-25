@@ -19,6 +19,7 @@ func main() {
 	transcriptsDir := flag.String("transcripts-dir", "./transcripts", "directory containing transcript JSON files")
 	model := flag.String("model", "", "model name to send in API requests (may be empty)")
 	outputPath := flag.String("output", "./scores.json", "path to write the output JSON file")
+	gtPath := flag.String("groundtruth", "./scores_groundtruth.json", "path to write/read the ground truth JSON file")
 	limit := flag.Int("limit", 0, "limit the number of transcripts to process (0 means no limit)")
 	review := flag.Bool("review", false, "interactive review mode to approve/reject extracted scores")
 	flag.Parse()
@@ -31,10 +32,17 @@ func main() {
 		os.Exit(1)
 	}()
 
-	// Load existing results to preserve reviews and skip already-reviewed videos
-	existingResults := make(map[string]VideoResult)
+	// Load ground truths
+	gtMap, gtRecords, err := LoadGroundTruth(*gtPath)
+	if err != nil {
+		log.Fatalf("Failed to load ground truth from %s: %v", *gtPath, err)
+	}
+	log.Printf("Loaded %d ground truth records from %s", len(gtRecords), *gtPath)
+
+	// Load existing results to preserve clean results and skip already-reviewed videos
+	existingResults := make(map[string]FinalVideoResult)
 	if data, err := os.ReadFile(*outputPath); err == nil {
-		var out Output
+		var out FinalOutput
 		if err := json.Unmarshal(data, &out); err == nil {
 			for _, res := range out.Results {
 				existingResults[res.VideoID] = res
@@ -46,7 +54,6 @@ func main() {
 	}
 
 	var transcripts map[string]*TranscriptFile
-	var err error
 
 	if flag.NArg() > 0 {
 		transcripts = make(map[string]*TranscriptFile)
@@ -90,7 +97,7 @@ func main() {
 	}
 
 	reader := bufio.NewReader(os.Stdin)
-	var results []VideoResult
+	var results []FinalVideoResult
 	processedVideoIDs := make(map[string]bool)
 
 	for i, videoID := range videoIDs {
@@ -109,12 +116,17 @@ func main() {
 			if !*review {
 				useExisting = true
 			} else {
-				// In review mode, reuse existing if there are no pending wines
+				// In review mode, reuse existing ONLY if all of its wines are already in ground truth
 				hasPending := false
-				for _, w := range res.Wines {
-					if w.ReviewStatus == "" || w.ReviewStatus == "pending" {
-						hasPending = true
-						break
+				if len(res.Wines) == 0 {
+					hasPending = false
+				} else {
+					for _, w := range res.Wines {
+						gtScore, hasGT := gtMap[videoID][w.Name]
+						if !hasGT || !scoresMatch(w.Score, gtScore) {
+							hasPending = true
+							break
+						}
 					}
 				}
 				if !hasPending {
@@ -125,7 +137,18 @@ func main() {
 
 		if useExisting {
 			log.Printf("[%d/%d] Using existing results for %s (contains %d wines)", i+1, len(videoIDs), videoID, len(res.Wines))
-			wines = res.Wines
+			wines = make([]WineScore, len(res.Wines))
+			for idx, fw := range res.Wines {
+				wines[idx] = WineScore{
+					Name:         fw.Name,
+					Producer:     fw.Producer,
+					Vintage:      fw.Vintage,
+					Region:       fw.Region,
+					Score:        fw.Score,
+					NotesSummary: fw.NotesSummary,
+					ReviewStatus: "approved",
+				}
+			}
 		} else {
 			log.Printf("[%d/%d] Querying LLM for %s...", i+1, len(videoIDs), videoID)
 			wines, err = client.Extract(ctx, tf)
@@ -133,14 +156,33 @@ func main() {
 				log.Printf("[%d/%d] Error processing %s: %v", i+1, len(videoIDs), videoID, err)
 				if exists {
 					log.Printf("[%d/%d] Falling back to existing results for %s", i+1, len(videoIDs), videoID)
-					wines = res.Wines
+					wines = make([]WineScore, len(res.Wines))
+					for idx, fw := range res.Wines {
+						wines[idx] = WineScore{
+							Name:         fw.Name,
+							Producer:     fw.Producer,
+							Vintage:      fw.Vintage,
+							Region:       fw.Region,
+							Score:        fw.Score,
+							NotesSummary: fw.NotesSummary,
+							ReviewStatus: "approved",
+						}
+					}
 				} else {
 					continue
 				}
 			} else {
-				// Initialize newly extracted wines with "pending" review status
+				// Initialize new wines.
+				// Perform auto-approval if the wine and score matches ground truth.
 				for idx := range wines {
-					wines[idx].ReviewStatus = "pending"
+					w := &wines[idx]
+					gtScore, hasGT := gtMap[videoID][w.Name]
+					if hasGT && scoresMatch(w.Score, gtScore) {
+						w.ReviewStatus = "approved"
+						log.Printf("  - %s: Auto-approved from ground truth", w.Name)
+					} else {
+						w.ReviewStatus = "pending"
+					}
 				}
 			}
 		}
@@ -159,7 +201,10 @@ func main() {
 				log.Printf("[%d/%d] Entering interactive review for %s...", i+1, len(videoIDs), videoID)
 				for idx := range wines {
 					w := &wines[idx]
-					if w.ReviewStatus != "" && w.ReviewStatus != "pending" {
+					if w.ReviewStatus != "" && w.ReviewStatus != "approved" && w.ReviewStatus != "pending" {
+						continue
+					}
+					if w.ReviewStatus == "approved" {
 						continue
 					}
 
@@ -175,6 +220,7 @@ func main() {
 					fmt.Printf("Score:    %s\n", scoreStr)
 					fmt.Printf("Summary:  %s\n", w.NotesSummary)
 
+					showDescriptionSnippet(tf.Description, w.Name)
 					showSnippetContext(tf.Transcript, w.MatchingSnippet)
 
 					for {
@@ -187,6 +233,22 @@ func main() {
 						if input == "y" {
 							w.ReviewStatus = "approved"
 							fmt.Println("-> Approved.")
+
+							// Extract the actual transcript snippet
+							start, end := findSnippetIndex(tf.Transcript, w.MatchingSnippet)
+							actualSnippet := w.MatchingSnippet
+							if start != -1 {
+								actualSnippet = tf.Transcript[start:end]
+							}
+							actualSnippet = strings.TrimSpace(actualSnippet)
+
+							// Update ground truth records
+							gtRecords = updateGroundTruth(gtRecords, videoID, w.Name, actualSnippet, w.Score)
+							if gtMap[videoID] == nil {
+								gtMap[videoID] = make(map[string]*int)
+							}
+							gtMap[videoID][w.Name] = w.Score
+
 							break
 						} else if input == "n" {
 							w.ReviewStatus = "rejected"
@@ -194,11 +256,31 @@ func main() {
 							break
 						} else if input == "q" {
 							fmt.Println("Quitting review and saving progress...")
-							// Add the current video result (with whatever we reviewed so far)
-							results = append(results, VideoResult{
+							// Save ground truth progress
+							if err := SaveGroundTruth(*gtPath, gtRecords); err != nil {
+								log.Printf("Error saving ground truth: %v", err)
+							}
+
+							// Convert wines to FinalWineScore (only approved ones)
+							var finalWines []FinalWineScore
+							for _, win := range wines {
+								if win.ReviewStatus == "approved" {
+									finalWines = append(finalWines, FinalWineScore{
+										Name:         win.Name,
+										Producer:     win.Producer,
+										Vintage:      win.Vintage,
+										Region:       win.Region,
+										Score:        win.Score,
+										NotesSummary: win.NotesSummary,
+									})
+								}
+							}
+							results = append(results, FinalVideoResult{
 								VideoID: videoID,
-								Wines:   wines,
+								Wines:   finalWines,
 							})
+
+							// Save output and quit
 							saveAndQuit(results, existingResults, videoIDs[i+1:], *outputPath)
 							return
 						} else {
@@ -209,9 +291,24 @@ func main() {
 			}
 		}
 
-		results = append(results, VideoResult{
+		// Convert wines to FinalWineScore
+		var finalWines []FinalWineScore
+		for _, win := range wines {
+			if !*review || win.ReviewStatus == "approved" {
+				finalWines = append(finalWines, FinalWineScore{
+					Name:         win.Name,
+					Producer:     win.Producer,
+					Vintage:      win.Vintage,
+					Region:       win.Region,
+					Score:        win.Score,
+					NotesSummary: win.NotesSummary,
+				})
+			}
+		}
+
+		results = append(results, FinalVideoResult{
 			VideoID: videoID,
-			Wines:   wines,
+			Wines:   finalWines,
 		})
 	}
 
@@ -227,7 +324,7 @@ func main() {
 		return results[i].VideoID < results[j].VideoID
 	})
 
-	output := Output{Results: results}
+	output := FinalOutput{Results: results}
 	data, err := json.MarshalIndent(output, "", "  ")
 	if err != nil {
 		log.Fatalf("Failed to marshal output: %v", err)
@@ -237,6 +334,11 @@ func main() {
 		log.Fatalf("Failed to write %s: %v", *outputPath, err)
 	}
 	log.Printf("Wrote %d result(s) to %s", len(results), *outputPath)
+
+	// Save ground truth progress
+	if err := SaveGroundTruth(*gtPath, gtRecords); err != nil {
+		log.Printf("Error saving ground truth: %v", err)
+	}
 }
 
 func findSnippetIndex(transcript, snippet string) (int, int) {
@@ -331,8 +433,8 @@ func showSnippetContext(transcript, snippet string) {
 	fmt.Printf("Model (Actual):      %s\n\n", strings.ReplaceAll(snippet, "\n", " "))
 }
 
-func saveAndQuit(currentResults []VideoResult, existingResults map[string]VideoResult, remainingVideoIDs []string, outputPath string) {
-	finalResults := append([]VideoResult(nil), currentResults...)
+func saveAndQuit(currentResults []FinalVideoResult, existingResults map[string]FinalVideoResult, remainingVideoIDs []string, outputPath string) {
+	finalResults := append([]FinalVideoResult(nil), currentResults...)
 
 	// For any remaining video IDs that were not processed in this run, preserve their existing data
 	for _, id := range remainingVideoIDs {
@@ -346,7 +448,7 @@ func saveAndQuit(currentResults []VideoResult, existingResults map[string]VideoR
 		return finalResults[i].VideoID < finalResults[j].VideoID
 	})
 
-	output := Output{Results: finalResults}
+	output := FinalOutput{Results: finalResults}
 	data, err := json.MarshalIndent(output, "", "  ")
 	if err != nil {
 		log.Fatalf("Failed to marshal output: %v", err)
@@ -356,4 +458,120 @@ func saveAndQuit(currentResults []VideoResult, existingResults map[string]VideoR
 		log.Fatalf("Failed to write %s: %v", outputPath, err)
 	}
 	log.Printf("Wrote %d result(s) to %s", len(finalResults), outputPath)
+}
+
+func LoadGroundTruth(path string) (map[string]map[string]*int, []GroundTruthRecord, error) {
+	m := make(map[string]map[string]*int)
+	var records []GroundTruthRecord
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return m, nil, nil
+		}
+		return nil, nil, err
+	}
+
+	var gt GroundTruth
+	if err := json.Unmarshal(data, &gt); err != nil {
+		return nil, nil, err
+	}
+
+	records = gt.Records
+	for _, rec := range records {
+		if m[rec.VideoID] == nil {
+			m[rec.VideoID] = make(map[string]*int)
+		}
+		m[rec.VideoID][rec.WineName] = rec.Score
+	}
+	return m, records, nil
+}
+
+func SaveGroundTruth(path string, records []GroundTruthRecord) error {
+	gt := GroundTruth{Records: records}
+	data, err := json.MarshalIndent(gt, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0644)
+}
+
+func updateGroundTruth(records []GroundTruthRecord, videoID, wineName, transcriptSnippet string, score *int) []GroundTruthRecord {
+	for i, rec := range records {
+		if rec.VideoID == videoID && rec.WineName == wineName {
+			records[i].TranscriptSnippet = transcriptSnippet
+			records[i].Score = score
+			return records
+		}
+	}
+	return append(records, GroundTruthRecord{
+		VideoID:           videoID,
+		WineName:          wineName,
+		TranscriptSnippet: transcriptSnippet,
+		Score:             score,
+	})
+}
+
+func scoresMatch(s1, s2 *int) bool {
+	if s1 == nil && s2 == nil {
+		return true
+	}
+	if s1 != nil && s2 != nil && *s1 == *s2 {
+		return true
+	}
+	return false
+}
+
+func showDescriptionSnippet(description, wineName string) {
+	lines := strings.Split(description, "\n")
+	target := strings.ToLower(strings.TrimSpace(wineName))
+	if len(target) == 0 {
+		return
+	}
+
+	matchedIdx := -1
+	for i, line := range lines {
+		if strings.Contains(strings.ToLower(line), target) {
+			matchedIdx = i
+			break
+		}
+	}
+
+	// Try matching first 2 words if exact match fails
+	if matchedIdx == -1 {
+		words := strings.Fields(target)
+		if len(words) >= 2 {
+			phrase := strings.Join(words[:2], " ")
+			for i, line := range lines {
+				if strings.Contains(strings.ToLower(line), phrase) {
+					matchedIdx = i
+					break
+				}
+			}
+		}
+	}
+
+	if matchedIdx != -1 {
+		start := matchedIdx - 1
+		if start < 0 {
+			start = 0
+		}
+		end := matchedIdx + 2
+		if end > len(lines) {
+			end = len(lines)
+		}
+
+		fmt.Println("\n--- DESCRIPTION CONTEXT ---")
+		for idx := start; idx < end; idx++ {
+			line := lines[idx]
+			if idx == matchedIdx {
+				fmt.Printf(">> \x1b[1;36m%s\x1b[0m\n", line)
+			} else {
+				fmt.Printf("   %s\n", line)
+			}
+		}
+		fmt.Println("---------------------------")
+	} else {
+		fmt.Printf("\n--- DESCRIPTION CONTEXT ---\n[Wine name not matched in description]\n---------------------------\n")
+	}
 }

@@ -27,3 +27,34 @@ type Output struct {
 type llmResponse struct {
 	Wines []WineScore `json:"wines"`
 }
+
+// Structures for final scores.json output (omitting internal review metadata)
+type FinalWineScore struct {
+	Name         string `json:"name"`
+	Producer     string `json:"producer"`
+	Vintage      string `json:"vintage"`
+	Region       string `json:"region"`
+	Score        *int   `json:"score"` // nil if wine was discussed but not scored
+	NotesSummary string `json:"notes_summary"`
+}
+
+type FinalVideoResult struct {
+	VideoID string           `json:"video_id"`
+	Wines   []FinalWineScore `json:"wines"`
+}
+
+type FinalOutput struct {
+	Results []FinalVideoResult `json:"results"`
+}
+
+// Structures for scores_groundtruth.json
+type GroundTruthRecord struct {
+	VideoID           string `json:"video_id"`
+	WineName          string `json:"wine_name"`
+	TranscriptSnippet string `json:"transcript_snippet"`
+	Score             *int   `json:"score"`
+}
+
+type GroundTruth struct {
+	Records []GroundTruthRecord `json:"ground_truths"`
+}
