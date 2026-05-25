@@ -7,7 +7,7 @@ engineering by it.
 
 Two tools in one repo:
 
-1. **`fetch-transcripts`** — download YouTube transcripts and descriptions for every video on a channel.
+1. **`get-transcript`** — download YouTube transcript and description for a specific video ID or URL.
 2. **`fetch-realwines` / `parse-realwines`** — scrape the full [realwines.ch](https://realwines.ch) wine catalogue to JSON via the public WooCommerce Store API.
 
 All tools are packaged as Nix flake apps and work inside a `nix develop` shell.
@@ -99,31 +99,23 @@ Each record in `wines.json`:
 
 ## YouTube transcript fetcher
 
-Downloads transcripts and descriptions for every video on a YouTube channel, saving one JSON file per video.
+Downloads the transcript and description for a single YouTube video ID or URL, and outputs a JSON object containing them.
 
 ### Quick start
 
 ```bash
-# With YouTube Data API v3 key (recommended):
-nix run .#fetch-transcripts -- --api-key YOUR_KEY --channel-id UC... --output-dir transcripts/
+# As a Nix app:
+nix run .#get-transcript -- QqUKF5MMwII
 
-# From a plain-text file of video IDs (one per line):
-nix run .#fetch-transcripts -- --video-ids-file ids.txt --output-dir transcripts/
-
-# Both: use file for IDs, API key to enrich with titles/descriptions:
-nix run .#fetch-transcripts -- --video-ids-file ids.txt --api-key YOUR_KEY --output-dir transcripts/
+# Or with a full URL:
+nix run .#get-transcript -- "https://www.youtube.com/watch?v=QqUKF5MMwII"
 ```
-
-Transcript language priority:
-1. Manually created subtitles in the video's native language
-2. Auto-generated subtitles in the native language
-3. First available track (any language) — logged as a warning
 
 ### Inside the dev shell
 
 ```bash
 nix develop
-python3 scripts/fetch_transcripts.py --help
+python3 get_transcript_api.py QqUKF5MMwII
 ```
 
 ---
@@ -134,5 +126,5 @@ python3 scripts/fetch_transcripts.py --help
 |---|---|
 | `nix run .#fetch-realwines` | Fetch realwines.ch API pages to local cache |
 | `nix run .#parse-realwines` | Parse cache → clean JSON |
-| `nix run .#fetch-transcripts` | Fetch YouTube transcripts |
+| `nix run .#get-transcript` | Fetch YouTube transcript and description |
 | `nix develop` | Drop into a shell with all dependencies available |

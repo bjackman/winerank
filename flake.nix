@@ -66,26 +66,26 @@
           '';
         };
 
-        fetch-transcripts = pkgs.writeShellApplication {
-          name = "fetch-transcripts";
+        get-transcript = pkgs.writeShellApplication {
+          name = "get-transcript";
           runtimeInputs = [ yt-dlp pythonEnv ];
           text = ''
-            exec python3 ${./scripts/fetch_transcripts.py} "$@"
+            exec python3 ${./get_transcript_api.py} "$@"
           '';
         };
       in
       {
         packages = {
-          inherit fetch-transcripts fetch-realwines parse-realwines scrape-realwines;
-          default = fetch-transcripts;
+          inherit get-transcript fetch-realwines parse-realwines scrape-realwines;
+          default = get-transcript;
         };
 
         apps = {
-          fetch-transcripts = flake-utils.lib.mkApp { drv = fetch-transcripts; };
+          get-transcript    = flake-utils.lib.mkApp { drv = get-transcript; };
           fetch-realwines   = flake-utils.lib.mkApp { drv = fetch-realwines; };
           parse-realwines   = flake-utils.lib.mkApp { drv = parse-realwines; };
           scrape-realwines  = flake-utils.lib.mkApp { drv = scrape-realwines; };
-          default = flake-utils.lib.mkApp { drv = fetch-transcripts; };
+          default = flake-utils.lib.mkApp { drv = get-transcript; };
         };
 
         devShells.default = pkgs.mkShell {
@@ -93,7 +93,7 @@
           shellHook = ''
             echo "winerank dev shell ready."
             echo ""
-            echo "Transcripts:  python3 scripts/fetch_transcripts.py --help"
+            echo "Transcripts:  python3 get_transcript_api.py --help"
             echo "realwines:    python3 realwines/fetch.py --help"
             echo "              python3 realwines/parse.py --from-cache --output realwines/wines.json"
           '';
