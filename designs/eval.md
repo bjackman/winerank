@@ -170,7 +170,7 @@ Implementation broken into small, well-scoped commits:
 - [x] Implement the metric computation (GT recall, score exact-match rate,
       unjudged-extraction count) over a parsed `scores.json` + GT pair, and
       print the one-line summary.
-- [ ] Wire up the extractor subprocess: collect GT video IDs, invoke the
+- [x] Wire up the extractor subprocess: collect GT video IDs, invoke the
       extractor with them as positional args and a temp output path, parse the
       result, run the metrics, print the summary.
 - [ ] Write the detailed `eval-report.json` with matched pairs, unmatched GT,
