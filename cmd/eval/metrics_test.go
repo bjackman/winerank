@@ -20,7 +20,7 @@ func TestComputeMetrics(t *testing.T) {
 				{Name: "2018 Chateau Le Boscq", Score: intPtr(91)},
 			},
 		}}}
-		m := computeMetrics(gt, output)
+		m, _ := computeMetrics(gt, output)
 		if m.GTCount != 2 || m.MatchedCount != 2 || m.ScoreMatchCount != 2 || m.UnjudgedCount != 0 {
 			t.Errorf("unexpected metrics: %+v", m)
 		}
@@ -34,7 +34,7 @@ func TestComputeMetrics(t *testing.T) {
 			VideoID: "v1",
 			Wines:   []ExtractedWine{{Name: "2022 Daou Cabernet Sauvignon", Score: intPtr(90)}},
 		}}}
-		m := computeMetrics(gt, output)
+		m, _ := computeMetrics(gt, output)
 		if m.MatchedCount != 1 {
 			t.Errorf("want 1 matched, got %d", m.MatchedCount)
 		}
@@ -55,7 +55,7 @@ func TestComputeMetrics(t *testing.T) {
 				{Name: "2017 Completely Different Wine", Score: intPtr(88)},
 			},
 		}}}
-		m := computeMetrics(gt, output)
+		m, _ := computeMetrics(gt, output)
 		if m.GTCount != 2 || m.MatchedCount != 1 || m.UnjudgedCount != 1 {
 			t.Errorf("unexpected metrics: %+v", m)
 		}
@@ -74,7 +74,7 @@ func TestComputeMetrics(t *testing.T) {
 				{Name: "2021 Another Wine", Score: intPtr(90)},
 			}},
 		}}
-		m := computeMetrics(gt, output)
+		m, _ := computeMetrics(gt, output)
 		if m.UnjudgedCount != 2 {
 			t.Errorf("want 2 unjudged (from no-GT video), got %d", m.UnjudgedCount)
 		}
@@ -85,7 +85,7 @@ func TestComputeMetrics(t *testing.T) {
 			{VideoID: "v1", WineName: "2022 Daou Cabernet Sauvignon", Score: intPtr(91)},
 		}}
 		output := ExtractorOutput{Results: []ExtractedVideo{}} // empty
-		m := computeMetrics(gt, output)
+		m, _ := computeMetrics(gt, output)
 		if m.GTCount != 1 || m.MatchedCount != 0 {
 			t.Errorf("unexpected metrics: %+v", m)
 		}
@@ -99,7 +99,7 @@ func TestComputeMetrics(t *testing.T) {
 			VideoID: "v1",
 			Wines:   []ExtractedWine{{Name: "2022 Daou Cabernet Sauvignon", Score: nil}},
 		}}}
-		m := computeMetrics(gt, output)
+		m, _ := computeMetrics(gt, output)
 		if m.ScoreMatchCount != 1 {
 			t.Errorf("want null==null as score match, got ScoreMatchCount=%d", m.ScoreMatchCount)
 		}

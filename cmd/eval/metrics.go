@@ -1,54 +1,85 @@
 package main
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"sort"
+)
 
 type metrics struct {
-	GTCount         int // total GT entries across all GT videos
-	MatchedCount    int // GT entries matched to an extraction
-	ScoreMatchCount int // matched pairs where scores agree
-	UnjudgedCount   int // extracted wines with no GT match
+	GTCount         int
+	MatchedCount    int
+	ScoreMatchCount int
+	UnjudgedCount   int
 }
 
 // computeMetrics runs matchVideo for every video that has GT entries and
 // aggregates the results. Videos present in the extractor output but absent
 // from GT are ignored (their wines all become unjudged).
-func computeMetrics(gt GroundTruth, output ExtractorOutput) metrics {
-	// Group GT entries by video ID.
+func computeMetrics(gt GroundTruth, output ExtractorOutput) (metrics, []videoReport) {
 	byVideo := make(map[string][]GroundTruthEntry)
 	for _, e := range gt.Entries {
 		byVideo[e.VideoID] = append(byVideo[e.VideoID], e)
 	}
 
-	// Index extractor output by video ID.
 	extractedByVideo := make(map[string][]ExtractedWine)
 	for _, v := range output.Results {
 		extractedByVideo[v.VideoID] = v.Wines
 	}
 
 	var m metrics
-	for videoID, gtEntries := range byVideo {
-		extracted := extractedByVideo[videoID] // nil if video not in output
+	var reports []videoReport
+
+	videoIDs := make([]string, 0, len(byVideo))
+	for id := range byVideo {
+		videoIDs = append(videoIDs, id)
+	}
+	sort.Strings(videoIDs)
+
+	for _, videoID := range videoIDs {
+		gtEntries := byVideo[videoID]
+		extracted := extractedByVideo[videoID]
 		r := matchVideo(gtEntries, extracted)
 
 		m.GTCount += len(gtEntries)
 		m.MatchedCount += len(r.Matched)
 		m.UnjudgedCount += len(r.Unjudged)
 
+		vr := videoReport{
+			VideoID:     videoID,
+			UnmatchedGT: r.UnmatchedGT,
+			Unjudged:    r.Unjudged,
+		}
 		for _, pair := range r.Matched {
-			if scoresEqual(pair.GT.Score, pair.Extracted.Score) {
+			sm := scoresEqual(pair.GT.Score, pair.Extracted.Score)
+			if sm {
 				m.ScoreMatchCount++
 			}
+			vr.Matched = append(vr.Matched, matchedPairReport{
+				GTWine:         pair.GT.WineName,
+				GTScore:        pair.GT.Score,
+				ExtractedWine:  pair.Extracted.Name,
+				ExtractedScore: pair.Extracted.Score,
+				ScoreMatch:     sm,
+				Similarity:     pair.Similarity,
+			})
 		}
+		reports = append(reports, vr)
 	}
 
-	// Count unjudged wines from videos that have no GT at all.
+	// Unjudged wines from videos with no GT at all.
 	for videoID, wines := range extractedByVideo {
 		if _, hasGT := byVideo[videoID]; !hasGT {
 			m.UnjudgedCount += len(wines)
+			reports = append(reports, videoReport{
+				VideoID:  videoID,
+				Unjudged: wines,
+			})
 		}
 	}
 
-	return m
+	return m, reports
 }
 
 func scoresEqual(a, b *int) bool {
@@ -76,4 +107,20 @@ func (m metrics) Summary() string {
 		m.ScoreMatchCount, m.MatchedCount, scorePct,
 		m.UnjudgedCount,
 	)
+}
+
+func writeReport(path string, m metrics, videos []videoReport) error {
+	r := evalReport{
+		Summary:         m.Summary(),
+		GTCount:         m.GTCount,
+		MatchedCount:    m.MatchedCount,
+		ScoreMatchCount: m.ScoreMatchCount,
+		UnjudgedCount:   m.UnjudgedCount,
+		Videos:          videos,
+	}
+	data, err := json.MarshalIndent(r, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0644)
 }

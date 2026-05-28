@@ -90,8 +90,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	m := computeMetrics(gt, output)
+	m, videos := computeMetrics(gt, output)
 	fmt.Println(m.Summary())
 
-	_ = *report // used in next step: write detailed report
+	if err := writeReport(*report, m, videos); err != nil {
+		fmt.Fprintf(os.Stderr, "error writing report: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Fprintf(os.Stderr, "Report written to %s\n", *report)
 }

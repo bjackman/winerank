@@ -31,3 +31,31 @@ type ExtractedVideo struct {
 type ExtractorOutput struct {
 	Results []ExtractedVideo `json:"results"`
 }
+
+// matchedPairReport is one matched (GT, extracted) pair for the report.
+type matchedPairReport struct {
+	GTWine        string `json:"gt_wine"`
+	GTScore       *int   `json:"gt_score"`
+	ExtractedWine string `json:"extracted_wine"`
+	ExtractedScore *int  `json:"extracted_score"`
+	ScoreMatch    bool   `json:"score_match"`
+	Similarity    float64 `json:"similarity"`
+}
+
+// videoReport holds per-video matching detail for the report.
+type videoReport struct {
+	VideoID     string              `json:"video_id"`
+	Matched     []matchedPairReport `json:"matched"`
+	UnmatchedGT []GroundTruthEntry  `json:"unmatched_gt"`
+	Unjudged    []ExtractedWine     `json:"unjudged"`
+}
+
+// evalReport is the top-level structure written to the report file.
+type evalReport struct {
+	Summary        string        `json:"summary"`
+	GTCount        int           `json:"gt_count"`
+	MatchedCount   int           `json:"matched_count"`
+	ScoreMatchCount int          `json:"score_match_count"`
+	UnjudgedCount  int           `json:"unjudged_count"`
+	Videos         []videoReport `json:"videos"`
+}

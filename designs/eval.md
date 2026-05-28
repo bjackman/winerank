@@ -173,7 +173,7 @@ Implementation broken into small, well-scoped commits:
 - [x] Wire up the extractor subprocess: collect GT video IDs, invoke the
       extractor with them as positional args and a temp output path, parse the
       result, run the metrics, print the summary.
-- [ ] Write the detailed `eval-report.json` with matched pairs, unmatched GT,
+- [x] Write the detailed `eval-report.json` with matched pairs, unmatched GT,
       and unjudged extractions.
 - [ ] Remove the inline GT auto-approve and `[MISMATCH]` printing from
       `cmd/extract-scores/main.go` so the extractor is silent about GT in
