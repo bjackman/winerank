@@ -167,7 +167,7 @@ Implementation broken into small, well-scoped commits:
       token overlap.
 - [x] Implement bipartite matching (greedy by similarity) between a GT list and
       an extracted list for one video.
-- [ ] Implement the metric computation (GT recall, score exact-match rate,
+- [x] Implement the metric computation (GT recall, score exact-match rate,
       unjudged-extraction count) over a parsed `scores.json` + GT pair, and
       print the one-line summary.
 - [ ] Wire up the extractor subprocess: collect GT video IDs, invoke the
