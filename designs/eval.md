@@ -155,7 +155,7 @@ grading.
 
 Implementation broken into small, well-scoped commits:
 
-- [ ] Scaffold `cmd/eval/` with its own Go module, CLI flag parsing, and a
+- [x] Scaffold `cmd/eval/` with its own Go module, CLI flag parsing, and a
       `nix run .#eval` entry in `flake.nix`. No logic yet; just prints the
       parsed flags.
 - [ ] Load and parse `scores_groundtruth.json` and the extractor's

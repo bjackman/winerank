@@ -78,6 +78,13 @@
             src = ./cmd/extract-scores;
             vendorHash = null;
           };
+
+          eval = pkgs.buildGoModule {
+            pname = "eval";
+            version = "0.1.0";
+            src = ./cmd/eval;
+            vendorHash = null;
+          };
           default = get-transcripts;
         };
 
