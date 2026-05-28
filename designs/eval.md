@@ -175,6 +175,6 @@ Implementation broken into small, well-scoped commits:
       result, run the metrics, print the summary.
 - [x] Write the detailed `eval-report.json` with matched pairs, unmatched GT,
       and unjudged extractions.
-- [ ] Remove the inline GT auto-approve and `[MISMATCH]` printing from
+- [x] Remove the inline GT auto-approve and `[MISMATCH]` printing from
       `cmd/extract-scores/main.go` so the extractor is silent about GT in
       non-review runs.
