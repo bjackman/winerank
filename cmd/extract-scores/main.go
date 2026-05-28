@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -263,7 +264,7 @@ func main() {
 					printWineSegmentContext(w.Name, reviewGot, reviewSentences, reviewSegResp, reviewSegGT)
 
 					for {
-						fmt.Print("Is this extraction correct? [y/n/t/q]: ")
+						fmt.Print("Is this extraction correct? [y/n/c/t/q]: ")
 						input, err := reader.ReadString('\n')
 						if err != nil {
 							input = "q"
@@ -297,6 +298,47 @@ func main() {
 						} else if input == "n" {
 							w.ReviewStatus = "rejected"
 							fmt.Println("-> Rejected.")
+							break
+						} else if input == "c" {
+							fmt.Print("Correct score (integer, or Enter for unscored): ")
+							scoreInput, err := reader.ReadString('\n')
+							if err != nil {
+								scoreInput = ""
+							}
+							scoreInput = strings.TrimSpace(scoreInput)
+							var correctedScore *int
+							if scoreInput != "" {
+								n, err := strconv.Atoi(scoreInput)
+								if err != nil {
+									fmt.Printf("Invalid score %q, try again.\n", scoreInput)
+									continue
+								}
+								correctedScore = &n
+							}
+							w.ReviewStatus = "rejected"
+							scoreLabel := "unscored"
+							if correctedScore != nil {
+								scoreLabel = fmt.Sprintf("%d", *correctedScore)
+							}
+							fmt.Printf("-> Rejected (GT updated with score: %s).\n", scoreLabel)
+
+							start, end := findSnippetIndex(tf.Transcript, w.MatchingSnippet)
+							actualSnippet := w.MatchingSnippet
+							if start != -1 {
+								actualSnippet = tf.Transcript[start:end]
+							}
+							actualSnippet = strings.TrimSpace(actualSnippet)
+
+							gtRecords = updateGroundTruth(gtRecords, videoID, w.Name, actualSnippet, correctedScore)
+							if gtMap[videoID] == nil {
+								gtMap[videoID] = make(map[string]GroundTruthRecord)
+							}
+							gtMap[videoID][w.Name] = GroundTruthRecord{
+								VideoID:           videoID,
+								WineName:          w.Name,
+								TranscriptSnippet: actualSnippet,
+								Score:             correctedScore,
+							}
 							break
 						} else if input == "t" {
 							viewInPager(tf.Transcript)
@@ -342,7 +384,7 @@ func main() {
 							saveAndQuit(results, existingResults, videoIDs[i+1:], *outputPath)
 							return
 						} else {
-							fmt.Println("Invalid input. Please type 'y' (yes), 'n' (no), or 'q' (quit).")
+							fmt.Println("Invalid input. Please type 'y' (yes), 'n' (no), 'c' (correct score), 't' (transcript), or 'q' (quit).")
 						}
 					}
 				}
