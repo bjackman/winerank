@@ -158,7 +158,7 @@ Implementation broken into small, well-scoped commits:
 - [x] Scaffold `cmd/eval/` with its own Go module, CLI flag parsing, and a
       `nix run .#eval` entry in `flake.nix`. No logic yet; just prints the
       parsed flags.
-- [ ] Load and parse `scores_groundtruth.json` and the extractor's
+- [x] Load and parse `scores_groundtruth.json` and the extractor's
       `scores.json` shape (copy the minimal struct definitions; do not import
       from `cmd/extract-scores`).
 - [ ] Implement wine-name normalization and the fuzzy matching function
