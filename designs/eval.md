@@ -165,7 +165,7 @@ Implementation broken into small, well-scoped commits:
       (vintage + Jaccard over normalized token sets). Add unit tests with
       hand-picked examples covering exact match, vintage mismatch, and partial
       token overlap.
-- [ ] Implement bipartite matching (greedy by similarity) between a GT list and
+- [x] Implement bipartite matching (greedy by similarity) between a GT list and
       an extracted list for one video.
 - [ ] Implement the metric computation (GT recall, score exact-match rate,
       unjudged-extraction count) over a parsed `scores.json` + GT pair, and
