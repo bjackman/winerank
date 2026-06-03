@@ -26,7 +26,7 @@ says is a reasonable model for this task with some tweak flags that are supposed
 to keep things in VRAM:
 
 ```sh
-llama-server --hf-repo bartowski/Qwen2.5-7B-Instruct-GGUF --hf-file Qwen2.5-7B-Instruct-Q4_K_M.gguf -ngl 99 -c 32768 --port 8080 -np 1
+llama-server --hf-repo bartowski/Qwen2.5-7B-Instruct-GGUF --hf-file Qwen2.5-7B-Instruct-Q4_K_M.gguf -ngl 99 -c 32768 --host 0.0.0.0 --port 8080 -np 1
 ```
 
 Opus 4.7's suggestion for a model to run on my Framework 13 (32GiB):
@@ -36,7 +36,7 @@ GGML_CUDA_ENABLE_UNIFIED_MEMORY=1 llama-server \
               -hf bartowski/Qwen_Qwen3-30B-A3B-Instruct-2507-GGUF:Q4_K_M \
               -ngl 99 -c 32768 -fa on \
               --cache-type-k q8_0 --cache-type-v q8_0 \
-              --port 8080 -np 1
+              --host 0.0.0.0 --port 8080 -np 1
 ```
 
 (Yes, the env var says CUDA but it still configures AMD too, I confirmed this
