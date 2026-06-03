@@ -26,7 +26,7 @@ says is a reasonable model for this task with some tweak flags that are supposed
 to keep things in VRAM:
 
 ```sh
-llama-server --hf-repo bartowski/Qwen2.5-7B-Instruct-GGUF --hf-file Qwen2.5-7B-Instruct-Q4_K_M.gguf -ngl 99 -c 32768  [47] Um so yeah, maybe maybe ma --port 8080 -np 1
+llama-server --hf-repo bartowski/Qwen2.5-7B-Instruct-GGUF --hf-file Qwen2.5-7B-Instruct-Q4_K_M.gguf -ngl 99 -c 32768 --port 8080 -np 1
 ```
 
 Opus 4.7's suggestion for a model to run on my Framework 13 (32GiB):
