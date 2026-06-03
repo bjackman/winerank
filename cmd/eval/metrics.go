@@ -109,8 +109,9 @@ func (m metrics) Summary() string {
 	)
 }
 
-func writeReport(path string, m metrics, videos []videoReport) error {
+func writeReport(path string, m metrics, videos []videoReport, prov *Provenance) error {
 	r := evalReport{
+		Provenance:      prov,
 		Summary:         m.Summary(),
 		GTCount:         m.GTCount,
 		MatchedCount:    m.MatchedCount,

@@ -1,5 +1,7 @@
 package main
 
+import "encoding/json"
+
 // GroundTruthEntry is one record from scores_groundtruth.json.
 // TranscriptSnippet is stored for human auditing; we ignore it here.
 type GroundTruthEntry struct {
@@ -50,12 +52,29 @@ type videoReport struct {
 	Unjudged    []ExtractedWine     `json:"unjudged"`
 }
 
+// Provenance captures the parameters that influence a run's results so the
+// experiment can be reproduced. ServerProps and ServerModels hold the raw JSON
+// from the llama.cpp server's /props and /v1/models endpoints, so whatever the
+// server reports (model path, context size, build, chat template, default
+// sampling) is preserved verbatim regardless of llama.cpp version.
+type Provenance struct {
+	Timestamp    string          `json:"timestamp"`
+	GitCommit    string          `json:"git_commit"`
+	GitDirty     bool            `json:"git_dirty"`
+	Extractor    string          `json:"extractor"`
+	ServerURL    string          `json:"server_url"`
+	ModelID      string          `json:"model_id,omitempty"`
+	ServerProps  json.RawMessage `json:"server_props,omitempty"`
+	ServerModels json.RawMessage `json:"server_models,omitempty"`
+}
+
 // evalReport is the top-level structure written to the report file.
 type evalReport struct {
-	Summary        string        `json:"summary"`
-	GTCount        int           `json:"gt_count"`
-	MatchedCount   int           `json:"matched_count"`
-	ScoreMatchCount int          `json:"score_match_count"`
-	UnjudgedCount  int           `json:"unjudged_count"`
-	Videos         []videoReport `json:"videos"`
+	Provenance      *Provenance   `json:"provenance,omitempty"`
+	Summary         string        `json:"summary"`
+	GTCount         int           `json:"gt_count"`
+	MatchedCount    int           `json:"matched_count"`
+	ScoreMatchCount int           `json:"score_match_count"`
+	UnjudgedCount   int           `json:"unjudged_count"`
+	Videos          []videoReport `json:"videos"`
 }

@@ -58,13 +58,21 @@ nix run .#eval
 ```
 
 It runs `.#extract-scores` on the ground-truth videos, prints a metrics
-summary, and writes `eval-report.json`. Override with `--extractor`,
-`--groundtruth`, `--transcripts-dir`, `--report`. For faster iteration, build
-the extractor once and point at the binary:
+summary, and writes a detailed report to `evals/<timestamp>.json`. Override the
+path with `--report`, and the rest with `--extractor`, `--groundtruth`,
+`--transcripts-dir`. For faster iteration, build the extractor once and point at
+the binary:
 
 ```sh
 go build -C cmd/extract-scores -o extract-scores
 nix run .#eval -- --extractor "$PWD/cmd/extract-scores/extract-scores"
 ```
+
+Each report embeds a `provenance` block so a run can be reproduced: the
+winerank git commit (and dirty flag), the extractor command, and the live
+server's `/props` and `/v1/models` (model path + revision, llama.cpp build,
+context size, chat template, default sampling). The server it queries comes from
+`--server` / `LLAMA_SERVER_URL` (same default as the extractor). These reports
+are meant to be committed.
 
 Needs a running `llama-server` (see above).

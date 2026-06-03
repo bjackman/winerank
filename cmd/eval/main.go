@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+	"time"
 )
 
 func loadGroundTruth(path string) (GroundTruth, error) {
@@ -52,8 +54,20 @@ func main() {
 	extractor := flag.String("extractor", "nix run .#extract-scores --", "command used to invoke the extractor")
 	groundtruth := flag.String("groundtruth", "scores_groundtruth.json", "path to ground truth file")
 	transcriptsDir := flag.String("transcripts-dir", "./transcripts", "directory containing transcript JSON files")
-	report := flag.String("report", "eval-report.json", "path to write the detailed eval report")
+	report := flag.String("report", "", "path to write the detailed eval report (default: evals/<timestamp>.json)")
+	defaultServer := "http://localhost:8080"
+	if v := os.Getenv("LLAMA_SERVER_URL"); v != "" {
+		defaultServer = v
+	}
+	server := flag.String("server", defaultServer, "llama.cpp server URL, queried for run provenance (env: LLAMA_SERVER_URL)")
 	flag.Parse()
+
+	// One timestamp shared by the report filename and the provenance block.
+	runTimestamp := time.Now().UTC().Format(time.RFC3339)
+	reportPath := *report
+	if reportPath == "" {
+		reportPath = filepath.Join("evals", runTimestamp+".json")
+	}
 
 	gt, err := loadGroundTruth(*groundtruth)
 	if err != nil {
@@ -93,9 +107,14 @@ func main() {
 	m, videos := computeMetrics(gt, output)
 	fmt.Println(m.Summary())
 
-	if err := writeReport(*report, m, videos); err != nil {
+	if err := os.MkdirAll(filepath.Dir(reportPath), 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "error creating report directory: %v\n", err)
+		os.Exit(1)
+	}
+	prov := gatherProvenance(runTimestamp, *extractor, *server)
+	if err := writeReport(reportPath, m, videos, prov); err != nil {
 		fmt.Fprintf(os.Stderr, "error writing report: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Fprintf(os.Stderr, "Report written to %s\n", *report)
+	fmt.Fprintf(os.Stderr, "Report written to %s\n", reportPath)
 }
