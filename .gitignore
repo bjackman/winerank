@@ -6,3 +6,5 @@ scores.json
 # realwines scraper — cache and output are reproducible, don't commit them
 realwines/cache/
 realwines/wines.json
+.claude/
+/eval-report.json
