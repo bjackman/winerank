@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -32,6 +33,7 @@ func main() {
 	segmentOnly := flag.Bool("segment", false, "run segmentation only, show GT diff if available, then exit")
 	structuredOutput := flag.Bool("structured-output", true, "request a JSON schema response_format (disable to work around llama.cpp grammar crashes)")
 	reasoning := flag.String("reasoning", "", `control model thinking via chat_template_kwargs: "off" disables it, "on" forces it, empty leaves the template default`)
+	observeAfter := flag.Duration("observe-after", 20*time.Second, "if an LLM request is still streaming after this long, echo the model's live output to stderr (0 disables)")
 	flag.Parse()
 
 	switch *reasoning {
@@ -114,6 +116,7 @@ func main() {
 
 	client := NewClient(*serverURL, *model, *structuredOutput)
 	client.Reasoning = *reasoning
+	client.ObserveAfter = *observeAfter
 
 	// Sort video IDs for deterministic output order and apply limit.
 	videoIDs := make([]string, 0, len(transcripts))

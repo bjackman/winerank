@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -8,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -20,8 +22,11 @@ type Client struct {
 	StructuredOutput bool
 	// Reasoning controls the chat_template_kwargs enable_thinking flag:
 	// "off" disables thinking, "on" forces it, "" leaves the template default.
-	Reasoning  string
-	HTTPClient *http.Client
+	Reasoning string
+	// ObserveAfter: if a streaming request is still running after this long,
+	// echo the model's live output to stderr. Zero disables live echoing.
+	ObserveAfter time.Duration
+	HTTPClient   *http.Client
 }
 
 // NewClient creates a new LLM client. When structuredOutput is false the client
@@ -46,6 +51,12 @@ type chatRequest struct {
 	ResponseFormat     *respFormat    `json:"response_format,omitempty"`
 	MaxTokens          int            `json:"max_tokens,omitempty"`
 	ChatTemplateKwargs map[string]any `json:"chat_template_kwargs,omitempty"`
+	Stream             bool           `json:"stream,omitempty"`
+	StreamOptions      *streamOptions `json:"stream_options,omitempty"`
+}
+
+type streamOptions struct {
+	IncludeUsage bool `json:"include_usage"`
 }
 
 type chatMessage struct {
@@ -123,13 +134,20 @@ const extractSchema = `{
   "additionalProperties": false
 }`
 
-// chatResponse is the relevant subset of the OpenAI chat completions response.
-type chatResponse struct {
+// streamChunk is the relevant subset of one server-sent event from a streaming
+// chat completion. reasoning_content carries the model's chain-of-thought when
+// the server splits it out (e.g. llama.cpp's peg-native format).
+type streamChunk struct {
 	Choices []struct {
-		Message struct {
-			Content string `json:"content"`
-		} `json:"message"`
+		Delta struct {
+			Content          string `json:"content"`
+			ReasoningContent string `json:"reasoning_content"`
+		} `json:"delta"`
 	} `json:"choices"`
+	Usage *struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+	} `json:"usage"`
 }
 
 // Segment runs only the transcript segmentation step and returns the raw LLM response.
@@ -246,6 +264,11 @@ func (c *Client) doChatRequest(ctx context.Context, systemMsg, userMsg string, m
 		req.ChatTemplateKwargs = map[string]any{"enable_thinking": true}
 	}
 
+	// Always stream so we can watch a slow request token-by-token and surface
+	// its live output if it overruns ObserveAfter.
+	req.Stream = true
+	req.StreamOptions = &streamOptions{IncludeUsage: true}
+
 	body, err := json.Marshal(req)
 	if err != nil {
 		return fmt.Errorf("marshaling request: %w", err)
@@ -265,32 +288,86 @@ func (c *Client) doChatRequest(ctx context.Context, systemMsg, userMsg string, m
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("reading response: %w", err)
-	}
-
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("server returned %d: %s", resp.StatusCode, string(respBody))
+		errBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("server returned %d: %s", resp.StatusCode, string(errBody))
 	}
 
-	var chatResp chatResponse
-	if err := json.Unmarshal(respBody, &chatResp); err != nil {
-		return fmt.Errorf("parsing response JSON: %w", err)
+	content, err := c.consumeStream(resp.Body)
+	if err != nil {
+		return err
 	}
 
-	if len(chatResp.Choices) == 0 {
-		return fmt.Errorf("no choices in response")
-	}
-
-	content := chatResp.Choices[0].Message.Content
 	content = stripCodeFences(content)
-
 	if err := json.Unmarshal([]byte(content), target); err != nil {
 		return fmt.Errorf("parsing LLM content as JSON: %w\nraw content: %s", err, content)
 	}
 
 	return nil
+}
+
+// consumeStream reads a streamed chat completion, returning the accumulated
+// answer content. If the request runs longer than ObserveAfter, it begins
+// echoing the model's live output (reasoning then answer) to stderr so a slow
+// or runaway generation can be observed in real time. It also logs token
+// counts and throughput once the stream finishes.
+func (c *Client) consumeStream(r io.Reader) (string, error) {
+	reader := bufio.NewReader(r)
+	var content, reasoning strings.Builder
+	var promptTokens, completionTokens int
+
+	start := time.Now()
+	observing := false
+	startObserving := func() {
+		observing = true
+		fmt.Fprintf(os.Stderr, "\n--- still running after %s, live model output: ---\n", c.ObserveAfter)
+		fmt.Fprint(os.Stderr, reasoning.String(), content.String())
+	}
+
+	for {
+		line, err := reader.ReadString('\n')
+		if line = strings.TrimSpace(line); strings.HasPrefix(line, "data:") {
+			data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+			if data != "[DONE]" {
+				var chunk streamChunk
+				if jsonErr := json.Unmarshal([]byte(data), &chunk); jsonErr == nil {
+					if chunk.Usage != nil {
+						promptTokens = chunk.Usage.PromptTokens
+						completionTokens = chunk.Usage.CompletionTokens
+					}
+					if len(chunk.Choices) > 0 {
+						d := chunk.Choices[0].Delta
+						reasoning.WriteString(d.ReasoningContent)
+						content.WriteString(d.Content)
+						if observing {
+							fmt.Fprint(os.Stderr, d.ReasoningContent, d.Content)
+						}
+					}
+				}
+				if !observing && c.ObserveAfter > 0 && time.Since(start) > c.ObserveAfter {
+					startObserving()
+				}
+			}
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return "", fmt.Errorf("reading stream: %w", err)
+		}
+	}
+
+	if observing {
+		fmt.Fprintln(os.Stderr, "\n--- end live output ---")
+	}
+
+	elapsed := time.Since(start)
+	if completionTokens > 0 {
+		log.Printf("  LLM: %d completion tokens (%d prompt) in %s = %.1f tok/s",
+			completionTokens, promptTokens, elapsed.Round(time.Millisecond), float64(completionTokens)/elapsed.Seconds())
+	}
+
+	return content.String(), nil
 }
 
 // splitIntoSentences divides text by standard punctuation, preserving sentence structure
