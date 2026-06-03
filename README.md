@@ -44,7 +44,10 @@ was required to get ROCM access to the full memory).
 
 With ROCM this crashed due to a llama.cpp bug in the structured output grammar
 logic. With Vulkan it crashed because it couldn't get access to the unified
-memory.
+memory. If you hit the grammar crash (`what():  Unexpected empty grammar stack
+after accepting piece: ? (30)`), run the extractor with
+`--structured-output=false` to drop the JSON schema `response_format` (it then
+relies on the prompt + code-fence stripping to recover JSON).
 
 The extractor talks to `http://localhost:8080` by default. Point it elsewhere
 with `--server`, or set `LLAMA_SERVER_URL` (the flag wins if both are given).

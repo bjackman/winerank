@@ -15,16 +15,20 @@ import (
 
 // Client talks to an OpenAI-compatible chat completions API.
 type Client struct {
-	ServerURL  string
-	Model      string
-	HTTPClient *http.Client
+	ServerURL        string
+	Model            string
+	StructuredOutput bool
+	HTTPClient       *http.Client
 }
 
-// NewClient creates a new LLM client.
-func NewClient(serverURL, model string) *Client {
+// NewClient creates a new LLM client. When structuredOutput is false the client
+// omits the json_schema response_format, avoiding the server-side grammar
+// sampler (a workaround for llama.cpp grammar crashes).
+func NewClient(serverURL, model string, structuredOutput bool) *Client {
 	return &Client{
-		ServerURL: serverURL,
-		Model:     model,
+		ServerURL:        serverURL,
+		Model:            model,
+		StructuredOutput: structuredOutput,
 		HTTPClient: &http.Client{
 			Timeout: 10 * time.Minute, // LLM inference can be slow on local hardware
 		},
@@ -200,8 +204,14 @@ func (c *Client) Extract(ctx context.Context, tf *TranscriptFile) ([]WineScore, 
 }
 
 func (c *Client) doChatRequest(ctx context.Context, systemMsg, userMsg string, maxTokens int, schema string, target interface{}) error {
+	// When structured output is disabled, omit response_format entirely so the
+	// server never engages its grammar sampler. We rely on the prompt plus
+	// stripCodeFences to recover JSON from the response.
 	var respFmt *respFormat
-	if schema != "" {
+	switch {
+	case !c.StructuredOutput:
+		respFmt = nil
+	case schema != "":
 		respFmt = &respFormat{
 			Type: "json_schema",
 			JSONSchema: &jsonSchema{
@@ -210,7 +220,7 @@ func (c *Client) doChatRequest(ctx context.Context, systemMsg, userMsg string, m
 				Strict: true,
 			},
 		}
-	} else {
+	default:
 		respFmt = &respFormat{Type: "json_object"}
 	}
 

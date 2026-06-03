@@ -30,6 +30,7 @@ func main() {
 	video := flag.String("video", "", "process only this video ID (mutually exclusive with --limit)")
 	review := flag.Bool("review", false, "interactive review mode to approve/reject extracted scores")
 	segmentOnly := flag.Bool("segment", false, "run segmentation only, show GT diff if available, then exit")
+	structuredOutput := flag.Bool("structured-output", true, "request a JSON schema response_format (disable to work around llama.cpp grammar crashes)")
 	flag.Parse()
 
 	if *video != "" && *limit > 0 {
@@ -104,7 +105,7 @@ func main() {
 	}
 	log.Printf("Loaded %d transcript(s)", len(transcripts))
 
-	client := NewClient(*serverURL, *model)
+	client := NewClient(*serverURL, *model, *structuredOutput)
 
 	// Sort video IDs for deterministic output order and apply limit.
 	videoIDs := make([]string, 0, len(transcripts))
