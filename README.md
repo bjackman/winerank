@@ -46,6 +46,9 @@ With ROCM this crashed due to a llama.cpp bug in the structured output grammar
 logic. With Vulkan it crashed because it couldn't get access to the unified
 memory.
 
+The extractor talks to `http://localhost:8080` by default. Point it elsewhere
+with `--server`, or set `LLAMA_SERVER_URL` (the flag wins if both are given).
+
 ### Eval
 
 Grade the extractor against `scores_groundtruth.json`:

@@ -17,7 +17,11 @@ import (
 )
 
 func main() {
-	serverURL := flag.String("server", "http://localhost:8080", "URL of the OpenAI-compatible API server")
+	defaultServer := "http://localhost:8080"
+	if v := os.Getenv("LLAMA_SERVER_URL"); v != "" {
+		defaultServer = v
+	}
+	serverURL := flag.String("server", defaultServer, "URL of the OpenAI-compatible API server (env: LLAMA_SERVER_URL)")
 	transcriptsDir := flag.String("transcripts-dir", "./transcripts", "directory containing transcript JSON files")
 	model := flag.String("model", "", "model name to send in API requests (may be empty)")
 	outputPath := flag.String("output", "./scores.json", "path to write the output JSON file")
