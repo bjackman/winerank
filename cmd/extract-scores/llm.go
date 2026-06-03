@@ -26,7 +26,10 @@ type Client struct {
 	// ObserveAfter: if a streaming request is still running after this long,
 	// echo the model's live output to stderr. Zero disables live echoing.
 	ObserveAfter time.Duration
-	HTTPClient   *http.Client
+	// Strategy selects the extraction pipeline: "multi-pass" (segment then
+	// per-wine extract) or "single-pass" (one prompt for all wines).
+	Strategy   string
+	HTTPClient *http.Client
 }
 
 // NewClient creates a new LLM client. When structuredOutput is false the client
@@ -134,6 +137,31 @@ const extractSchema = `{
   "additionalProperties": false
 }`
 
+const singlePassSchema = `{
+  "type": "object",
+  "properties": {
+    "wines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "producer": { "type": "string" },
+          "vintage": { "type": "string" },
+          "region": { "type": "string" },
+          "score": { "type": ["integer", "null"] },
+          "notes_summary": { "type": "string" },
+          "matching_snippet": { "type": "string" }
+        },
+        "required": ["name", "producer", "vintage", "region", "score", "notes_summary", "matching_snippet"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["wines"],
+  "additionalProperties": false
+}`
+
 // streamChunk is the relevant subset of one server-sent event from a streaming
 // chat completion. reasoning_content carries the model's chain-of-thought when
 // the server splits it out (e.g. llama.cpp's peg-native format).
@@ -171,8 +199,41 @@ func (c *Client) Segment(ctx context.Context, tf *TranscriptFile) (*segmentRespo
 	return &segResp, nil
 }
 
-// Extract implements the two-pass segmentation + score extraction pipeline.
+// Extract runs the configured extraction strategy. The returned segmentResponse
+// is nil for the single-pass strategy, which does not segment.
 func (c *Client) Extract(ctx context.Context, tf *TranscriptFile) ([]WineScore, *segmentResponse, error) {
+	if c.Strategy == "single-pass" {
+		wines, err := c.extractSinglePass(ctx, tf)
+		return wines, nil, err
+	}
+	return c.extractMultiPass(ctx, tf)
+}
+
+// extractSinglePass asks the model for every wine and its score in one request,
+// with no segmentation.
+func (c *Client) extractSinglePass(ctx context.Context, tf *TranscriptFile) ([]WineScore, error) {
+	if strings.TrimSpace(tf.Transcript) == "" {
+		return nil, fmt.Errorf("empty transcript")
+	}
+
+	log.Printf("Extracting all wines in a single pass...")
+	var resp llmResponse
+	userMsg := BuildSinglePassUserMessage(tf.Description, tf.Transcript)
+	if err := c.doChatRequest(ctx, singlePassSystemPrompt, userMsg, 4096, singlePassSchema, &resp); err != nil {
+		return nil, fmt.Errorf("single-pass extraction failed: %w", err)
+	}
+
+	wines := make([]WineScore, len(resp.Wines))
+	for i, w := range resp.Wines {
+		w.ReviewStatus = "pending"
+		wines[i] = w
+	}
+	log.Printf("Extracted %d wines.", len(wines))
+	return wines, nil
+}
+
+// extractMultiPass implements the two-pass segmentation + score extraction pipeline.
+func (c *Client) extractMultiPass(ctx context.Context, tf *TranscriptFile) ([]WineScore, *segmentResponse, error) {
 	sentences := splitIntoSentences(tf.Transcript)
 	totalSents := len(sentences)
 	if totalSents == 0 {

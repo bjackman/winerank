@@ -34,12 +34,23 @@ func main() {
 	structuredOutput := flag.Bool("structured-output", true, "request a JSON schema response_format (disable to work around llama.cpp grammar crashes)")
 	reasoning := flag.String("reasoning", "", `control model thinking via chat_template_kwargs: "off" disables it, "on" forces it, empty leaves the template default`)
 	observeAfter := flag.Duration("observe-after", 20*time.Second, "if an LLM request is still streaming after this long, echo the model's live output to stderr (0 disables)")
+	strategy := flag.String("strategy", "multi-pass", `extraction strategy: "multi-pass" (segment then per-wine extract) or "single-pass" (one prompt for all wines)`)
 	flag.Parse()
 
 	switch *reasoning {
 	case "", "on", "off":
 	default:
 		log.Fatalf("--reasoning must be one of \"\", \"on\", \"off\" (got %q)", *reasoning)
+	}
+
+	switch *strategy {
+	case "multi-pass", "single-pass":
+	default:
+		log.Fatalf(`--strategy must be "multi-pass" or "single-pass" (got %q)`, *strategy)
+	}
+
+	if *segmentOnly && *strategy == "single-pass" {
+		log.Fatal("--segment is only valid with --strategy=multi-pass")
 	}
 
 	if *video != "" && *limit > 0 {
@@ -117,6 +128,7 @@ func main() {
 	client := NewClient(*serverURL, *model, *structuredOutput)
 	client.Reasoning = *reasoning
 	client.ObserveAfter = *observeAfter
+	client.Strategy = *strategy
 
 	// Sort video IDs for deterministic output order and apply limit.
 	videoIDs := make([]string, 0, len(transcripts))
