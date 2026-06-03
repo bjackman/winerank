@@ -45,3 +45,23 @@ was required to get ROCM access to the full memory).
 With ROCM this crashed due to a llama.cpp bug in the structured output grammar
 logic. With Vulkan it crashed because it couldn't get access to the unified
 memory.
+
+### Eval
+
+Grade the extractor against `scores_groundtruth.json`:
+
+```sh
+nix run .#eval
+```
+
+It runs `.#extract-scores` on the ground-truth videos, prints a metrics
+summary, and writes `eval-report.json`. Override with `--extractor`,
+`--groundtruth`, `--transcripts-dir`, `--report`. For faster iteration, build
+the extractor once and point at the binary:
+
+```sh
+go build -C cmd/extract-scores -o extract-scores
+nix run .#eval -- --extractor "$PWD/cmd/extract-scores/extract-scores"
+```
+
+Needs a running `llama-server` (see above).
