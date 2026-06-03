@@ -33,17 +33,14 @@ Opus 4.7's suggestion for a model to run on my Framework 13 (32GiB):
 
 ```sh
 GGML_CUDA_ENABLE_UNIFIED_MEMORY=1 llama-server \
-              -hf bartowski/Qwen_Qwen3-30B-A3B-Instruct-2507-GGUF:Q4_K_M \
-              -ngl 99 -c 32768 -fa on \
-              --cache-type-k q8_0 --cache-type-v q8_0 \
-              --host 0.0.0.0 --port 8080 -np 1
+               -hf unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF:Q4_K_M \
+               -ngl 99 -c 16384 -fa on --host 0.0.0.0 --port 8080 -np 1
 ```
 
 (Yes, the env var says CUDA but it still configures AMD too, I confirmed this
 was required to get ROCM access to the full memory).
 
-With ROCM this crashed due to a llama.cpp bug in the structured output grammar
-logic. With Vulkan it crashed because it couldn't get access to the unified
+With Vulkan it crashed because it couldn't get access to the unified
 memory. If you hit the grammar crash (`what():  Unexpected empty grammar stack
 after accepting piece: ? (30)`), run the extractor with
 `--structured-output=false` to drop the JSON schema `response_format` (it then
