@@ -177,9 +177,8 @@ func (c *Client) Extract(ctx context.Context, tf *TranscriptFile) ([]WineScore, 
 		if len(focusedText) > 0 {
 			log.Printf("  [%d/%d] Extracting score for: %s", idx+1, len(mappings), m.WineName)
 			extractReqMsg := BuildExtractUserMessage(m.WineName, focusedText)
-			err := c.doChatRequest(ctx, extractSystemPrompt, extractReqMsg, 1024, extractSchema, &extResp)
-			if err != nil {
-				log.Printf("Warning: step 2 extraction failed for wine %q: %v. Using defaults.", m.WineName, err)
+			if err := c.doChatRequest(ctx, extractSystemPrompt, extractReqMsg, 1024, extractSchema, &extResp); err != nil {
+				return nil, nil, fmt.Errorf("extracting score for wine %q: %w", m.WineName, err)
 			}
 		} else {
 			log.Printf("  [%d/%d] No transcript segment mapped for: %s (will default to no score)", idx+1, len(mappings), m.WineName)
@@ -233,27 +232,6 @@ func (c *Client) doChatRequest(ctx context.Context, systemMsg, userMsg string, m
 
 	url := c.ServerURL + "/v1/chat/completions"
 
-	var lastErr error
-	for attempt := range 3 {
-		if attempt > 0 {
-			delay := time.Duration(1<<uint(attempt)) * time.Second
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(delay):
-			}
-		}
-
-		err := c.doSingleRequest(ctx, url, body, target)
-		if err == nil {
-			return nil
-		}
-		lastErr = err
-	}
-	return fmt.Errorf("after 3 attempts: %w", lastErr)
-}
-
-func (c *Client) doSingleRequest(ctx context.Context, url string, body []byte, target interface{}) error {
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("creating request: %w", err)
