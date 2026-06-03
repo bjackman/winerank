@@ -18,7 +18,10 @@ type Client struct {
 	ServerURL        string
 	Model            string
 	StructuredOutput bool
-	HTTPClient       *http.Client
+	// Reasoning controls the chat_template_kwargs enable_thinking flag:
+	// "off" disables thinking, "on" forces it, "" leaves the template default.
+	Reasoning  string
+	HTTPClient *http.Client
 }
 
 // NewClient creates a new LLM client. When structuredOutput is false the client
@@ -37,11 +40,12 @@ func NewClient(serverURL, model string, structuredOutput bool) *Client {
 
 // chatRequest is the OpenAI chat completions request body.
 type chatRequest struct {
-	Model          string        `json:"model,omitempty"`
-	Messages       []chatMessage `json:"messages"`
-	Temperature    float64       `json:"temperature"`
-	ResponseFormat *respFormat   `json:"response_format,omitempty"`
-	MaxTokens      int           `json:"max_tokens,omitempty"`
+	Model              string         `json:"model,omitempty"`
+	Messages           []chatMessage  `json:"messages"`
+	Temperature        float64        `json:"temperature"`
+	ResponseFormat     *respFormat    `json:"response_format,omitempty"`
+	MaxTokens          int            `json:"max_tokens,omitempty"`
+	ChatTemplateKwargs map[string]any `json:"chat_template_kwargs,omitempty"`
 }
 
 type chatMessage struct {
@@ -233,6 +237,13 @@ func (c *Client) doChatRequest(ctx context.Context, systemMsg, userMsg string, m
 		Temperature:    0.1,
 		ResponseFormat: respFmt,
 		MaxTokens:      maxTokens,
+	}
+
+	switch c.Reasoning {
+	case "off":
+		req.ChatTemplateKwargs = map[string]any{"enable_thinking": false}
+	case "on":
+		req.ChatTemplateKwargs = map[string]any{"enable_thinking": true}
 	}
 
 	body, err := json.Marshal(req)
