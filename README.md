@@ -76,3 +76,20 @@ context size, chat template, default sampling). The server it queries comes from
 are meant to be committed.
 
 Needs a running `llama-server` (see above).
+
+### Next steps
+
+`--strategy=single-pass` looks good, make that the default.
+
+Claude says:
+
+>   One small observability note for your eval going forward: a vintage/name
+>   drift gets double-penalized (unmatched + unjudged) rather than shown as "matched
+>   wine, wrong vintage." That's exactly the kind of thing the
+>   precision/"extracted-but-unmatched" view I mentioned earlier would make legible
+>   at a glance.
+
+So tweak the eval params a bit.
+
+Then, improve token efficiency, we only get like 10-15 t/s and there is a bunch
+of irrelevant garbage in the JSON output.
