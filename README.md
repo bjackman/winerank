@@ -105,6 +105,7 @@ own fetcher/parser; note the e-commerce platform once known (WooCommerce stores
 can reuse the realwines approach).
 
 - [ ] [Flaschenpost](https://www.flaschenpost.ch/) — largest CH retailer, 30k+ wines
+  - Recon in `notes/flaschenpost.md`
 - [ ] [Gerstl Weinselektionen](https://www.gerstl.ch/) — fine wines, since 1981
 - [ ] [Baur au Lac Vins](https://www.bauraulacvins.ch/) — 3k+ articles, 300+ producers
 - [ ] [Mövenpick Wein](https://www.moevenpick-wein.com/de/) — Zürich-Enge + Wein-Bar, 3k+ wines
