@@ -9,8 +9,8 @@ force a re-fetch.
 
 Usage
 -----
-    nix develop -c python vinazion/fetch.py            # fetch all, use cache
-    nix develop -c python vinazion/fetch.py --refresh  # ignore cache
+    nix develop -c python scraping/vinazion/fetch.py            # fetch all, use cache
+    nix develop -c python scraping/vinazion/fetch.py --refresh  # ignore cache
 """
 
 import argparse
@@ -24,7 +24,7 @@ import requests
 BASE_URL = "https://www.vinazion.ch/wp-json/wc/store/v1/products"
 PER_PAGE = 100
 # Resolved from CWD so it works both in-tree and when baked into the Nix store.
-CACHE_DIR = Path.cwd() / "vinazion" / "cache"
+CACHE_DIR = Path.cwd() / "scraping" / "vinazion" / "cache"
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"

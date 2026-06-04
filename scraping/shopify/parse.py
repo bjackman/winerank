@@ -16,8 +16,8 @@ Prices are decimal strings (e.g. "12.00"); we convert to integer minor units
 
 Usage
 -----
-    nix develop -c python shopify/parse.py --name vergani     --from-cache --output shopify/vergani.json
-    nix develop -c python shopify/parse.py --name advanvinum  --from-cache --output shopify/advanvinum.json
+    nix develop -c python scraping/shopify/parse.py --name vergani     --from-cache --output scraping/shopify/vergani.json
+    nix develop -c python scraping/shopify/parse.py --name advanvinum  --from-cache --output scraping/shopify/advanvinum.json
 """
 
 import argparse
@@ -50,7 +50,7 @@ NON_WINE_TAGS = {
 
 
 def cache_dir(name: str) -> Path:
-    return Path.cwd() / "shopify" / "cache" / name
+    return Path.cwd() / "scraping" / "shopify" / "cache" / name
 
 
 def load_from_cache(name: str) -> list[dict]:

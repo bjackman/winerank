@@ -17,12 +17,12 @@
           ps.requests
         ]);
 
-        # Fetch all pages from the WooCommerce Store API into ./realwines/cache/
+        # Fetch all pages from the WooCommerce Store API into ./scraping/realwines/cache/
         fetch-realwines = pkgs.writeShellApplication {
           name = "fetch-realwines";
           runtimeInputs = [ pythonEnvScraper ];
           text = ''
-            exec python3 ${./realwines/fetch.py} "$@"
+            exec python3 ${./scraping/realwines/fetch.py} "$@"
           '';
         };
 
@@ -31,21 +31,21 @@
           name = "parse-realwines";
           runtimeInputs = [ pythonEnvScraper ];
           text = ''
-            exec python3 ${./realwines/parse.py} "$@"
+            exec python3 ${./scraping/realwines/parse.py} "$@"
           '';
         };
 
-        # Convenience: fetch (if needed) then parse → realwines/wines.json
+        # Convenience: fetch (if needed) then parse → scraping/realwines/wines.json
         scrape-realwines = pkgs.writeShellApplication {
           name = "scrape-realwines";
           runtimeInputs = [ pythonEnvScraper ];
           text = ''
             set -euo pipefail
             SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-            CACHE_DIR="$SCRIPT_DIR/../realwines/cache"
-            OUT="$SCRIPT_DIR/../realwines/wines.json"
-            python3 ${./realwines/fetch.py} "$@" > /dev/null
-            python3 ${./realwines/parse.py} --from-cache --output "$OUT"
+            CACHE_DIR="$SCRIPT_DIR/../scraping/realwines/cache"
+            OUT="$SCRIPT_DIR/../scraping/realwines/wines.json"
+            python3 ${./scraping/realwines/fetch.py} "$@" > /dev/null
+            python3 ${./scraping/realwines/parse.py} --from-cache --output "$OUT"
             echo "Done → $OUT"
           '';
         };

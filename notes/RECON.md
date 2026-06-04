@@ -1,8 +1,10 @@
 # Merchant recon playbook
 
-How to recon a wine merchant's website so we can build a `<merchant>/` scraper
-that mirrors `realwines/` (cache-first `fetch.py` + `parse.py`). Read this, then
-produce `notes/<merchant>.md` using the **template at the bottom**.
+How to recon a wine merchant's website so we can build a `scraping/<merchant>/`
+scraper that mirrors `scraping/realwines/` (cache-first `fetch.py` + `parse.py`).
+Read this, then produce `notes/<merchant>.md` using the **template at the
+bottom**. (All scraper code lives under `scraping/`; recon notes stay in
+`notes/`.)
 
 The goal of recon is **not** to build the scraper — it's to answer: *where does
 the catalogue data live, how do we page through all of it, and what does one
@@ -32,12 +34,13 @@ Agents don't depend on each other — pure fan-out.
 
 ## House conventions (apply to every scraper)
 
-- **Pattern:** one directory per merchant with `fetch.py` (cache-first; one raw
-  file per page under `<merchant>/cache/`) and `parse.py` (cache → clean wine
-  records as a JSON array). Copy `realwines/fetch.py` + `realwines/parse.py` as
-  the skeleton. **Exception:** merchants on the *same* platform can share one
-  parametrised scraper instead — see `shopify/` (`--shop`/`--name`), used for
-  Vergani and AdvanVinum, with per-merchant cache under `shopify/cache/<name>/`.
+- **Pattern:** one directory per merchant under `scraping/` with `fetch.py`
+  (cache-first; one raw file per page under `scraping/<merchant>/cache/`) and
+  `parse.py` (cache → clean wine records as a JSON array). Copy
+  `scraping/realwines/fetch.py` + `scraping/realwines/parse.py` as the skeleton.
+  **Exception:** merchants on the *same* platform can share one parametrised
+  scraper instead — see `scraping/shopify/` (`--shop`/`--name`), used for Vergani
+  and AdvanVinum, with per-merchant cache under `scraping/shopify/cache/<name>/`.
 - **Output record:** parsers emit a JSON array of records sharing a common core —
   `merchant, name, producer, vintage (int|null), currency, price (integer minor
   units / rappen), in_stock, sku, url` — plus any extras the source gives cheaply
@@ -120,9 +123,9 @@ Verify before trusting. ✅ = recon written.
 | Merchant | Platform | Status |
 |---|---|---|
 | flaschenpost.ch | Next.js/RSC (custom) | recon ✅ `notes/flaschenpost.md` |
-| vinazion.ch | WooCommerce | **built** `vinazion/` |
-| vergani.ch | Shopify | **built** `shopify/` |
-| advanvinum-wein.ch | Shopify | **built** `shopify/` |
+| vinazion.ch | WooCommerce | **built** `scraping/vinazion/` |
+| vergani.ch | Shopify | **built** `scraping/shopify/` |
+| advanvinum-wein.ch | Shopify | **built** `scraping/shopify/` |
 | bindella.ch | BigCommerce | todo |
 | more-than-wine.com | PrestaShop | todo |
 | arvi.ch | nopCommerce (.NET) | todo |

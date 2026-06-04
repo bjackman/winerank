@@ -10,9 +10,9 @@ auth. There is no total-count header, so we page until a page returns fewer than
 
 Usage
 -----
-    nix develop -c python shopify/fetch.py --shop www.vergani.ch     --name vergani
-    nix develop -c python shopify/fetch.py --shop advanvinum-wein.ch --name advanvinum
-    nix develop -c python shopify/fetch.py --shop www.vergani.ch --name vergani --refresh
+    nix develop -c python scraping/shopify/fetch.py --shop www.vergani.ch     --name vergani
+    nix develop -c python scraping/shopify/fetch.py --shop advanvinum-wein.ch --name advanvinum
+    nix develop -c python scraping/shopify/fetch.py --shop www.vergani.ch --name vergani --refresh
 """
 
 import argparse
@@ -34,7 +34,7 @@ DELAY_SECONDS = 1.5  # polite delay between live requests
 
 def cache_dir(name: str) -> Path:
     # Resolved from CWD so it works both in-tree and when baked into the Nix store.
-    return Path.cwd() / "shopify" / "cache" / name
+    return Path.cwd() / "scraping" / "shopify" / "cache" / name
 
 
 def fetch_page(shop: str, name: str, page: int, refresh: bool = False) -> list[dict]:

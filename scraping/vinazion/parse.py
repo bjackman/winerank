@@ -10,8 +10,8 @@ currency, exactly like realwines.
 
 Usage
 -----
-    nix develop -c python vinazion/parse.py --from-cache --output vinazion/wines.json
-    nix develop -c python vinazion/fetch.py | nix develop -c python vinazion/parse.py
+    nix develop -c python scraping/vinazion/parse.py --from-cache --output scraping/vinazion/wines.json
+    nix develop -c python scraping/vinazion/fetch.py | nix develop -c python scraping/vinazion/parse.py
 """
 
 import argparse
@@ -21,7 +21,7 @@ import re
 import sys
 from pathlib import Path
 
-CACHE_DIR = Path.cwd() / "vinazion" / "cache"
+CACHE_DIR = Path.cwd() / "scraping" / "vinazion" / "cache"
 
 # Map our record field → the WooCommerce attribute name Vinazion uses.
 ATTR_PRODUCER = "Weingut"

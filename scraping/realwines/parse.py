@@ -8,13 +8,13 @@ to stdout (or --output file).
 Usage
 -----
     # Parse from cached pages directly (no network):
-    python3 realwines/parse.py --from-cache
+    python3 scraping/realwines/parse.py --from-cache
 
     # Or pipe from fetcher:
-    python3 realwines/fetch.py | python3 realwines/parse.py
+    python3 scraping/realwines/fetch.py | python3 scraping/realwines/parse.py
 
     # Write output to file:
-    python3 realwines/parse.py --from-cache --output realwines/wines.json
+    python3 scraping/realwines/parse.py --from-cache --output scraping/realwines/wines.json
 """
 
 import argparse
@@ -25,7 +25,7 @@ import sys
 from pathlib import Path
 
 # Resolved from CWD so it works both in-tree and when baked into the Nix store.
-CACHE_DIR = Path.cwd() / "realwines" / "cache"
+CACHE_DIR = Path.cwd() / "scraping" / "realwines" / "cache"
 
 
 def load_from_cache() -> list[dict]:
