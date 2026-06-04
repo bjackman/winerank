@@ -23,10 +23,20 @@ type ExtractedWine struct {
 	Score *int   `json:"score"`
 }
 
+// ExtractStats is the per-video cost the extractor records: wall-clock time and
+// LLM token usage. Absent for videos the extractor served from cache.
+type ExtractStats struct {
+	Requests         int   `json:"requests"`
+	PromptTokens     int   `json:"prompt_tokens"`
+	CompletionTokens int   `json:"completion_tokens"`
+	DurationMS       int64 `json:"duration_ms"`
+}
+
 // ExtractedVideo groups extracted wines for one video.
 type ExtractedVideo struct {
 	VideoID string          `json:"video_id"`
 	Wines   []ExtractedWine `json:"wines"`
+	Stats   *ExtractStats   `json:"stats,omitempty"`
 }
 
 // ExtractorOutput is the top-level structure written by the extractor.
@@ -50,6 +60,20 @@ type videoReport struct {
 	Matched     []matchedPairReport `json:"matched"`
 	UnmatchedGT []GroundTruthEntry  `json:"unmatched_gt"`
 	Unjudged    []ExtractedWine     `json:"unjudged"`
+	Stats       *ExtractStats       `json:"stats,omitempty"`
+}
+
+// PerfSummary aggregates extraction cost across all freshly-extracted videos in
+// a run. Wall-clock (TotalDurationMS) reflects real elapsed time and is subject
+// to server load and hardware variance; the token totals and the derived
+// CompletionTokensPerSec let throughput be judged independently of that.
+type PerfSummary struct {
+	Videos                 int     `json:"videos"`
+	TotalRequests          int     `json:"total_requests"`
+	TotalPromptTokens      int     `json:"total_prompt_tokens"`
+	TotalCompletionTokens  int     `json:"total_completion_tokens"`
+	TotalDurationMS        int64   `json:"total_duration_ms"`
+	CompletionTokensPerSec float64 `json:"completion_tokens_per_sec"`
 }
 
 // Provenance captures the parameters that influence a run's results so the
@@ -76,5 +100,6 @@ type evalReport struct {
 	MatchedCount    int           `json:"matched_count"`
 	ScoreMatchCount int           `json:"score_match_count"`
 	UnjudgedCount   int           `json:"unjudged_count"`
+	Performance     *PerfSummary  `json:"performance,omitempty"`
 	Videos          []videoReport `json:"videos"`
 }

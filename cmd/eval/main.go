@@ -107,12 +107,19 @@ func main() {
 	m, videos := computeMetrics(gt, output)
 	fmt.Println(m.Summary())
 
+	perf := summarizePerf(output)
+	if perf != nil {
+		fmt.Fprintf(os.Stderr, "perf: %d video(s) in %s, %d prompt + %d completion tokens (%.1f completion tok/s)\n",
+			perf.Videos, (time.Duration(perf.TotalDurationMS) * time.Millisecond).Round(time.Millisecond),
+			perf.TotalPromptTokens, perf.TotalCompletionTokens, perf.CompletionTokensPerSec)
+	}
+
 	if err := os.MkdirAll(filepath.Dir(reportPath), 0755); err != nil {
 		fmt.Fprintf(os.Stderr, "error creating report directory: %v\n", err)
 		os.Exit(1)
 	}
 	prov := gatherProvenance(runTimestamp, *extractor, *server)
-	if err := writeReport(reportPath, m, videos, prov); err != nil {
+	if err := writeReport(reportPath, m, videos, perf, prov); err != nil {
 		fmt.Fprintf(os.Stderr, "error writing report: %v\n", err)
 		os.Exit(1)
 	}

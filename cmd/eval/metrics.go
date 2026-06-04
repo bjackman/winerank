@@ -24,8 +24,10 @@ func computeMetrics(gt GroundTruth, output ExtractorOutput) (metrics, []videoRep
 	}
 
 	extractedByVideo := make(map[string][]ExtractedWine)
+	statsByVideo := make(map[string]*ExtractStats)
 	for _, v := range output.Results {
 		extractedByVideo[v.VideoID] = v.Wines
+		statsByVideo[v.VideoID] = v.Stats
 	}
 
 	var m metrics
@@ -50,6 +52,7 @@ func computeMetrics(gt GroundTruth, output ExtractorOutput) (metrics, []videoRep
 			VideoID:     videoID,
 			UnmatchedGT: r.UnmatchedGT,
 			Unjudged:    r.Unjudged,
+			Stats:       statsByVideo[videoID],
 		}
 		for _, pair := range r.Matched {
 			sm := scoresEqual(pair.GT.Score, pair.Extracted.Score)
@@ -75,6 +78,7 @@ func computeMetrics(gt GroundTruth, output ExtractorOutput) (metrics, []videoRep
 			reports = append(reports, videoReport{
 				VideoID:  videoID,
 				Unjudged: wines,
+				Stats:    statsByVideo[videoID],
 			})
 		}
 	}
@@ -109,7 +113,31 @@ func (m metrics) Summary() string {
 	)
 }
 
-func writeReport(path string, m metrics, videos []videoReport, prov *Provenance) error {
+// summarizePerf aggregates per-video extraction stats into a run-level summary.
+// Videos without stats (served from cache, no LLM call) are skipped. Returns nil
+// when no video reported stats, so the report omits the block entirely.
+func summarizePerf(output ExtractorOutput) *PerfSummary {
+	var p PerfSummary
+	for _, v := range output.Results {
+		if v.Stats == nil {
+			continue
+		}
+		p.Videos++
+		p.TotalRequests += v.Stats.Requests
+		p.TotalPromptTokens += v.Stats.PromptTokens
+		p.TotalCompletionTokens += v.Stats.CompletionTokens
+		p.TotalDurationMS += v.Stats.DurationMS
+	}
+	if p.Videos == 0 {
+		return nil
+	}
+	if p.TotalDurationMS > 0 {
+		p.CompletionTokensPerSec = float64(p.TotalCompletionTokens) / (float64(p.TotalDurationMS) / 1000)
+	}
+	return &p
+}
+
+func writeReport(path string, m metrics, videos []videoReport, perf *PerfSummary, prov *Provenance) error {
 	r := evalReport{
 		Provenance:      prov,
 		Summary:         m.Summary(),
@@ -117,6 +145,7 @@ func writeReport(path string, m metrics, videos []videoReport, prov *Provenance)
 		MatchedCount:    m.MatchedCount,
 		ScoreMatchCount: m.ScoreMatchCount,
 		UnjudgedCount:   m.UnjudgedCount,
+		Performance:     perf,
 		Videos:          videos,
 	}
 	data, err := json.MarshalIndent(r, "", "  ")

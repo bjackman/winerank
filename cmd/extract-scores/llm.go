@@ -162,6 +162,20 @@ const singlePassSchema = `{
   "additionalProperties": false
 }`
 
+// usage accumulates token counts and LLM request counts across one or more
+// chat completions. The zero value is ready to use; Add folds another usage in.
+type usage struct {
+	Requests         int `json:"requests"`
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+}
+
+func (u *usage) Add(o usage) {
+	u.Requests += o.Requests
+	u.PromptTokens += o.PromptTokens
+	u.CompletionTokens += o.CompletionTokens
+}
+
 // streamChunk is the relevant subset of one server-sent event from a streaming
 // chat completion. reasoning_content carries the model's chain-of-thought when
 // the server splits it out (e.g. llama.cpp's peg-native format).
@@ -178,11 +192,12 @@ type streamChunk struct {
 	} `json:"usage"`
 }
 
-// Segment runs only the transcript segmentation step and returns the raw LLM response.
-func (c *Client) Segment(ctx context.Context, tf *TranscriptFile) (*segmentResponse, error) {
+// Segment runs only the transcript segmentation step and returns the raw LLM
+// response along with the token usage of the segmentation request.
+func (c *Client) Segment(ctx context.Context, tf *TranscriptFile) (*segmentResponse, usage, error) {
 	sentences := splitIntoSentences(tf.Transcript)
 	if len(sentences) == 0 {
-		return nil, fmt.Errorf("empty transcript")
+		return nil, usage{}, fmt.Errorf("empty transcript")
 	}
 
 	var fullSb strings.Builder
@@ -192,35 +207,37 @@ func (c *Client) Segment(ctx context.Context, tf *TranscriptFile) (*segmentRespo
 
 	log.Printf("Segmenting transcript...")
 	var segResp segmentResponse
-	err := c.doChatRequest(ctx, segmentSystemPrompt, BuildSegmentUserMessage(tf.Description, fullSb.String()), 4096, segmentSchema, &segResp)
+	u, err := c.doChatRequest(ctx, segmentSystemPrompt, BuildSegmentUserMessage(tf.Description, fullSb.String()), 4096, segmentSchema, &segResp)
 	if err != nil {
-		return nil, fmt.Errorf("transcript segmentation failed: %w", err)
+		return nil, u, fmt.Errorf("transcript segmentation failed: %w", err)
 	}
-	return &segResp, nil
+	return &segResp, u, nil
 }
 
 // Extract runs the configured extraction strategy. The returned segmentResponse
-// is nil for the single-pass strategy, which does not segment.
-func (c *Client) Extract(ctx context.Context, tf *TranscriptFile) ([]WineScore, *segmentResponse, error) {
+// is nil for the single-pass strategy, which does not segment. The returned
+// usage aggregates token counts across every LLM request the strategy made.
+func (c *Client) Extract(ctx context.Context, tf *TranscriptFile) ([]WineScore, *segmentResponse, usage, error) {
 	if c.Strategy == "single-pass" {
-		wines, err := c.extractSinglePass(ctx, tf)
-		return wines, nil, err
+		wines, u, err := c.extractSinglePass(ctx, tf)
+		return wines, nil, u, err
 	}
 	return c.extractMultiPass(ctx, tf)
 }
 
 // extractSinglePass asks the model for every wine and its score in one request,
 // with no segmentation.
-func (c *Client) extractSinglePass(ctx context.Context, tf *TranscriptFile) ([]WineScore, error) {
+func (c *Client) extractSinglePass(ctx context.Context, tf *TranscriptFile) ([]WineScore, usage, error) {
 	if strings.TrimSpace(tf.Transcript) == "" {
-		return nil, fmt.Errorf("empty transcript")
+		return nil, usage{}, fmt.Errorf("empty transcript")
 	}
 
 	log.Printf("Extracting all wines in a single pass...")
 	var resp llmResponse
 	userMsg := BuildSinglePassUserMessage(tf.Description, tf.Transcript)
-	if err := c.doChatRequest(ctx, singlePassSystemPrompt, userMsg, 4096, singlePassSchema, &resp); err != nil {
-		return nil, fmt.Errorf("single-pass extraction failed: %w", err)
+	u, err := c.doChatRequest(ctx, singlePassSystemPrompt, userMsg, 4096, singlePassSchema, &resp)
+	if err != nil {
+		return nil, u, fmt.Errorf("single-pass extraction failed: %w", err)
 	}
 
 	wines := make([]WineScore, len(resp.Wines))
@@ -229,20 +246,20 @@ func (c *Client) extractSinglePass(ctx context.Context, tf *TranscriptFile) ([]W
 		wines[i] = w
 	}
 	log.Printf("Extracted %d wines.", len(wines))
-	return wines, nil
+	return wines, u, nil
 }
 
 // extractMultiPass implements the two-pass segmentation + score extraction pipeline.
-func (c *Client) extractMultiPass(ctx context.Context, tf *TranscriptFile) ([]WineScore, *segmentResponse, error) {
+func (c *Client) extractMultiPass(ctx context.Context, tf *TranscriptFile) ([]WineScore, *segmentResponse, usage, error) {
 	sentences := splitIntoSentences(tf.Transcript)
 	totalSents := len(sentences)
 	if totalSents == 0 {
-		return nil, nil, fmt.Errorf("empty transcript")
+		return nil, nil, usage{}, fmt.Errorf("empty transcript")
 	}
 
-	segResp, err := c.Segment(ctx, tf)
+	segResp, total, err := c.Segment(ctx, tf)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, total, err
 	}
 
 	mappings := combineMappings(*segResp, totalSents)
@@ -264,8 +281,10 @@ func (c *Client) extractMultiPass(ctx context.Context, tf *TranscriptFile) ([]Wi
 		if len(focusedText) > 0 {
 			log.Printf("  [%d/%d] Extracting score for: %s", idx+1, len(mappings), m.WineName)
 			extractReqMsg := BuildExtractUserMessage(m.WineName, focusedText)
-			if err := c.doChatRequest(ctx, extractSystemPrompt, extractReqMsg, 1024, extractSchema, &extResp); err != nil {
-				return nil, nil, fmt.Errorf("extracting score for wine %q: %w", m.WineName, err)
+			u, err := c.doChatRequest(ctx, extractSystemPrompt, extractReqMsg, 1024, extractSchema, &extResp)
+			total.Add(u)
+			if err != nil {
+				return nil, nil, total, fmt.Errorf("extracting score for wine %q: %w", m.WineName, err)
 			}
 		} else {
 			log.Printf("  [%d/%d] No transcript segment mapped for: %s (will default to no score)", idx+1, len(mappings), m.WineName)
@@ -283,10 +302,10 @@ func (c *Client) extractMultiPass(ctx context.Context, tf *TranscriptFile) ([]Wi
 		})
 	}
 
-	return wines, segResp, nil
+	return wines, segResp, total, nil
 }
 
-func (c *Client) doChatRequest(ctx context.Context, systemMsg, userMsg string, maxTokens int, schema string, target interface{}) error {
+func (c *Client) doChatRequest(ctx context.Context, systemMsg, userMsg string, maxTokens int, schema string, target interface{}) (usage, error) {
 	// When structured output is disabled, omit response_format entirely so the
 	// server never engages its grammar sampler. We rely on the prompt plus
 	// stripCodeFences to recover JSON from the response.
@@ -332,39 +351,39 @@ func (c *Client) doChatRequest(ctx context.Context, systemMsg, userMsg string, m
 
 	body, err := json.Marshal(req)
 	if err != nil {
-		return fmt.Errorf("marshaling request: %w", err)
+		return usage{}, fmt.Errorf("marshaling request: %w", err)
 	}
 
 	url := c.ServerURL + "/v1/chat/completions"
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("creating request: %w", err)
+		return usage{}, fmt.Errorf("creating request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.HTTPClient.Do(httpReq)
 	if err != nil {
-		return fmt.Errorf("sending request: %w", err)
+		return usage{}, fmt.Errorf("sending request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		errBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("server returned %d: %s", resp.StatusCode, string(errBody))
+		return usage{}, fmt.Errorf("server returned %d: %s", resp.StatusCode, string(errBody))
 	}
 
-	content, err := c.consumeStream(resp.Body)
+	content, u, err := c.consumeStream(resp.Body)
 	if err != nil {
-		return err
+		return u, err
 	}
 
 	content = stripCodeFences(content)
 	if err := json.Unmarshal([]byte(content), target); err != nil {
-		return fmt.Errorf("parsing LLM content as JSON: %w\nraw content: %s", err, content)
+		return u, fmt.Errorf("parsing LLM content as JSON: %w\nraw content: %s", err, content)
 	}
 
-	return nil
+	return u, nil
 }
 
 // consumeStream reads a streamed chat completion, returning the accumulated
@@ -372,7 +391,7 @@ func (c *Client) doChatRequest(ctx context.Context, systemMsg, userMsg string, m
 // echoing the model's live output (reasoning then answer) to stderr so a slow
 // or runaway generation can be observed in real time. It also logs token
 // counts and throughput once the stream finishes.
-func (c *Client) consumeStream(r io.Reader) (string, error) {
+func (c *Client) consumeStream(r io.Reader) (string, usage, error) {
 	reader := bufio.NewReader(r)
 	var content, reasoning strings.Builder
 	var promptTokens, completionTokens int
@@ -414,7 +433,7 @@ func (c *Client) consumeStream(r io.Reader) (string, error) {
 			break
 		}
 		if err != nil {
-			return "", fmt.Errorf("reading stream: %w", err)
+			return "", usage{Requests: 1, PromptTokens: promptTokens, CompletionTokens: completionTokens}, fmt.Errorf("reading stream: %w", err)
 		}
 	}
 
@@ -428,7 +447,7 @@ func (c *Client) consumeStream(r io.Reader) (string, error) {
 			completionTokens, promptTokens, elapsed.Round(time.Millisecond), float64(completionTokens)/elapsed.Seconds())
 	}
 
-	return content.String(), nil
+	return content.String(), usage{Requests: 1, PromptTokens: promptTokens, CompletionTokens: completionTokens}, nil
 }
 
 // splitIntoSentences divides text by standard punctuation, preserving sentence structure

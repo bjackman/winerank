@@ -76,9 +76,22 @@ type FinalWineScore struct {
 	NotesSummary string `json:"notes_summary"`
 }
 
+// ExtractStats records the cost of extracting one video: wall-clock time and
+// the token usage of the LLM request(s) involved. Wall-clock is influenced by
+// server load and hardware (llama-server, ROCm), so it is reported alongside
+// token counts to let throughput be assessed independently of that noise. It is
+// omitted for videos served from cache (no LLM call was made).
+type ExtractStats struct {
+	Requests         int   `json:"requests"`
+	PromptTokens     int   `json:"prompt_tokens"`
+	CompletionTokens int   `json:"completion_tokens"`
+	DurationMS       int64 `json:"duration_ms"`
+}
+
 type FinalVideoResult struct {
 	VideoID string           `json:"video_id"`
 	Wines   []FinalWineScore `json:"wines"`
+	Stats   *ExtractStats    `json:"stats,omitempty"`
 }
 
 type FinalOutput struct {

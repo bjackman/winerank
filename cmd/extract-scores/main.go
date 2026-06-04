@@ -146,7 +146,7 @@ func main() {
 		for _, videoID := range videoIDs {
 			tf := transcripts[videoID]
 			log.Printf("Segmenting %s...", videoID)
-			segResp, err := client.Segment(ctx, tf)
+			segResp, _, err := client.Segment(ctx, tf)
 			if err != nil {
 				log.Printf("Error segmenting %s: %v", videoID, err)
 				continue
@@ -176,6 +176,7 @@ func main() {
 		isForced := flag.NArg() > 0 || *video != "" // explicit video selection forces reload
 
 		var wines []WineScore
+		var stats *ExtractStats
 		var reviewSentences []string
 		var reviewGot map[int]segmentClassification
 		var reviewSegGT *segmentGroundTruth
@@ -223,7 +224,15 @@ func main() {
 		} else {
 			log.Printf("[%d/%d] Querying LLM for %s...", i+1, len(videoIDs), videoID)
 			var segResp *segmentResponse
-			wines, segResp, err = client.Extract(ctx, tf)
+			var u usage
+			extractStart := time.Now()
+			wines, segResp, u, err = client.Extract(ctx, tf)
+			stats = &ExtractStats{
+				Requests:         u.Requests,
+				PromptTokens:     u.PromptTokens,
+				CompletionTokens: u.CompletionTokens,
+				DurationMS:       time.Since(extractStart).Milliseconds(),
+			}
 			if err != nil {
 				log.Printf("[%d/%d] Error processing %s: %v", i+1, len(videoIDs), videoID, err)
 				if exists {
@@ -406,6 +415,7 @@ func main() {
 							results = append(results, FinalVideoResult{
 								VideoID: videoID,
 								Wines:   finalWines,
+								Stats:   stats,
 							})
 
 							// Save output and quit
@@ -437,6 +447,7 @@ func main() {
 		results = append(results, FinalVideoResult{
 			VideoID: videoID,
 			Wines:   finalWines,
+			Stats:   stats,
 		})
 	}
 
