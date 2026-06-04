@@ -79,8 +79,6 @@ Needs a running `llama-server` (see above).
 
 ### Next steps
 
-`--strategy=single-pass` looks good, make that the default.
-
 Claude says:
 
 >   One small observability note for your eval going forward: a vintage/name

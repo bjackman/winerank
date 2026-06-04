@@ -34,7 +34,7 @@ func main() {
 	structuredOutput := flag.Bool("structured-output", true, "request a JSON schema response_format (disable to work around llama.cpp grammar crashes)")
 	reasoning := flag.String("reasoning", "", `control model thinking via chat_template_kwargs: "off" disables it, "on" forces it, empty leaves the template default`)
 	observeAfter := flag.Duration("observe-after", 20*time.Second, "if an LLM request is still streaming after this long, echo the model's live output to stderr (0 disables)")
-	strategy := flag.String("strategy", "multi-pass", `extraction strategy: "multi-pass" (segment then per-wine extract) or "single-pass" (one prompt for all wines)`)
+	strategy := flag.String("strategy", "single-pass", `extraction strategy: "multi-pass" (segment then per-wine extract) or "single-pass" (one prompt for all wines)`)
 	flag.Parse()
 
 	switch *reasoning {
