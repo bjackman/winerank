@@ -85,6 +85,13 @@ func main() {
 	}
 	fmt.Fprintf(os.Stderr, "Running extractor on %d video(s): %s\n", len(videoIDs), strings.Join(videoIDs, ", "))
 
+	// Snapshot git/server provenance *before* the long extractor run, so a commit
+	// made while the eval is running can't bleed into the recorded git state. The
+	// run reflects the code as it was at launch, not whatever HEAD is when the
+	// report is finally written.
+	// TODO: This is dumb, I want the code as it was at build. But whatever.
+	prov := gatherProvenance(runTimestamp, *extractor, *server)
+
 	tmpFile, err := os.CreateTemp("", "winerank-eval-*.json")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error creating temp file: %v\n", err)
@@ -118,7 +125,6 @@ func main() {
 		fmt.Fprintf(os.Stderr, "error creating report directory: %v\n", err)
 		os.Exit(1)
 	}
-	prov := gatherProvenance(runTimestamp, *extractor, *server)
 	if err := writeReport(reportPath, m, videos, perf, prov); err != nil {
 		fmt.Fprintf(os.Stderr, "error writing report: %v\n", err)
 		os.Exit(1)
