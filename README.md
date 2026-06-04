@@ -79,18 +79,52 @@ Needs a running `llama-server` (see above).
 
 ### Next steps
 
-Claude says:
+**Token efficiency — done (mostly).** The single-pass output schema was trimmed
+to just `name` + `score` (the only fields the eval grades; producer/vintage/
+region/notes_summary/matching_snippet are now `omitempty` and only the multi-pass
+strategy fills them). The eval report now also carries per-video timing + token
+counts (`stats`) and a top-level `performance` block. Measured on the 4-video GT
+set: **10m04s → 3m11s (3.16x), completion tokens 5777 → 1130 (-80%)**, recall
+unchanged. See `evals/2026-06-04T20:59:30Z.json` (before) vs `...T21:26:00Z.json`
+(after).
 
->   One small observability note for your eval going forward: a vintage/name
->   drift gets double-penalized (unmatched + unjudged) rather than shown as "matched
->   wine, wrong vintage." That's exactly the kind of thing the
->   precision/"extracted-but-unmatched" view I mentioned earlier would make legible
->   at a glance.
+The bottleneck has now **flipped from decode to prefill**: decode runs ~12 t/s
+but prefill ~200-290 t/s, so once the output got small, the ~25k prompt tokens/run
+dominate wall-clock. Next speed lever is **prompt size** (trim the transcript /
+system prompt), but the ceiling is lower since prefill is ~20x faster per token.
+Note `completion_tokens_per_sec` in the report is now misleading — it divides by
+total (prefill-dominated) duration, so it no longer means "decode speed".
 
-So tweak the eval params a bit.
+**Accuracy kinks (recall 26/27, score-match 25/26).** Investigated both:
 
-Then, improve token efficiency, we only get like 10-15 t/s and there is a bunch
-of irrelevant garbage in the JSON output.
+- *Ruffino (recall miss)* — was a **GT bug**, now fixed. GT said `2021 Ruffino
+  Riserva Ducale` but the video description (and the model) say `2019`; the bad
+  `2021` had leaked from the *previous* wine's wine-searcher URL fragment. Same
+  score (90), so it was getting double-penalized (unmatched GT + unjudged) — the
+  observability note below. Fixing the label should give recall 27/27 next run.
+
+- *Le Riche Richesse (score miss: model 91, GT 93)* — a real **model
+  mis-attribution**, NOT number parsing. The ASR wrote "ninety-three" as
+  "90 three", but `normalizeASRNumbers` (in `transcript.go`) already rewrites that
+  to `93` before the model sees it — confirmed the model is handed a clean
+  "...rate this 93 points". The problem is binding the score to the right wine:
+  5 of the 7 wines in that blind tasting are rated 91, and the model grabbed a 91.
+  Weak evidence the schema trim made this worse (full schema got it right 1/2
+  runs, trimmed 0/2) — dropping `matching_snippet` removed the per-score
+  "quote the supporting line" anchor. Confounded by the server running a **random
+  seed** (`-1`), so it flickers run-to-run.
+
+Concrete TODOs:
+- Add a `--seed` flag to the extractor (server seed is currently random) so evals
+  are reproducible — the score-match noise that made an earlier run look like
+  26/26 was just seed luck on the borderline Le Riche wine.
+- With a fixed seed, A/B the full vs trimmed schema on the Le Riche video to settle
+  whether the trim has a real (small) attribution cost worth the 3x speedup.
+- Eval observability: a vintage/name drift gets double-penalized (unmatched +
+  unjudged) rather than shown as "matched wine, wrong vintage" — a
+  precision / "extracted-but-unmatched" view would make this legible at a glance
+  (and would have flagged the Ruffino GT bug immediately).
+- Prompt-token reduction (see bottleneck note above) for further speedup.
 
 ## Merchant inventory scraping
 
