@@ -35,7 +35,14 @@ Agents don't depend on each other — pure fan-out.
 - **Pattern:** one directory per merchant with `fetch.py` (cache-first; one raw
   file per page under `<merchant>/cache/`) and `parse.py` (cache → clean wine
   records as a JSON array). Copy `realwines/fetch.py` + `realwines/parse.py` as
-  the skeleton.
+  the skeleton. **Exception:** merchants on the *same* platform can share one
+  parametrised scraper instead — see `shopify/` (`--shop`/`--name`), used for
+  Vergani and AdvanVinum, with per-merchant cache under `shopify/cache/<name>/`.
+- **Output record:** parsers emit a JSON array of records sharing a common core —
+  `merchant, name, producer, vintage (int|null), currency, price (integer minor
+  units / rappen), in_stock, sku, url` — plus any extras the source gives cheaply
+  (e.g. Vinazion adds `country, region, grapes`). Convert decimal prices to minor
+  units to stay consistent (Shopify `"12.00"` → `1200`).
 - **Python:** there is no `python3` on PATH. Run everything as
   `nix develop -c python ...` (Python 3.13 from the devShell).
 - **Politeness:** Firefox desktop User-Agent (string below), ~1.5 s delay
@@ -112,10 +119,10 @@ Verify before trusting. ✅ = recon written.
 
 | Merchant | Platform | Status |
 |---|---|---|
-| flaschenpost.ch | Next.js/RSC (custom) | ✅ `notes/flaschenpost.md` |
-| vinazion.ch | WooCommerce | ✅ `notes/vinazion.md` (reuse realwines) |
-| vergani.ch | Shopify | ✅ `notes/vergani.md` |
-| advanvinum-wein.ch | Shopify | ✅ `notes/advanvinum.md` |
+| flaschenpost.ch | Next.js/RSC (custom) | recon ✅ `notes/flaschenpost.md` |
+| vinazion.ch | WooCommerce | **built** `vinazion/` |
+| vergani.ch | Shopify | **built** `shopify/` |
+| advanvinum-wein.ch | Shopify | **built** `shopify/` |
 | bindella.ch | BigCommerce | todo |
 | more-than-wine.com | PrestaShop | todo |
 | arvi.ch | nopCommerce (.NET) | todo |

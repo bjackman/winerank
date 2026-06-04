@@ -98,6 +98,25 @@ We currently scrape [realwines.ch](https://realwines.ch) (a WooCommerce store �
 see `realwines/`). The plan is to add a scraper per merchant under its own
 directory, following the same cache-first fetch + parse pattern.
 
+Each scraper is a `fetch.py` (cache-first; one raw page file under `cache/`) +
+`parse.py` (cache → clean wine records). Run them with `nix develop -c python`
+(there's no `python3` on PATH). Built so far:
+
+```sh
+# Vinazion (WooCommerce, ~305 wines)
+nix develop -c python vinazion/fetch.py
+nix develop -c python vinazion/parse.py --from-cache --output vinazion/wines.json
+
+# Shopify shops (one parametrised scraper for all of them)
+nix develop -c python shopify/fetch.py --shop www.vergani.ch     --name vergani
+nix develop -c python shopify/parse.py --name vergani --from-cache --output shopify/vergani.json
+nix develop -c python shopify/fetch.py --shop advanvinum-wein.ch --name advanvinum
+nix develop -c python shopify/parse.py --name advanvinum --from-cache --output shopify/advanvinum.json
+```
+
+`notes/RECON.md` is the recon playbook + per-platform shortcuts for adding the
+rest; per-merchant recon lives in `notes/<merchant>.md`.
+
 ### TODO: merchants in and around Zürich to scrape
 
 Wine merchants with online catalogues, roughly in priority order. Each needs its
@@ -107,9 +126,9 @@ recon lands in `notes/<merchant>.md`. Platforms below are from a first-pass
 fingerprint (verify before trusting). Checkbox = scraper built.
 
 - [ ] [Flaschenpost](https://www.flaschenpost.ch/) — Next.js/RSC custom — 20k+ wines — recon ✅ `notes/flaschenpost.md`
-- [ ] [Vinazion](https://www.vinazion.ch/) — **WooCommerce** (305) — recon ✅ `notes/vinazion.md` (reuse realwines)
-- [ ] [Vergani](https://www.vergani.ch/) — **Shopify** (756) — recon ✅ `notes/vergani.md`
-- [ ] [AdvanVinum](https://advanvinum-wein.ch/) — **Shopify** (270) — recon ✅ `notes/advanvinum.md`
+- [x] [Vinazion](https://www.vinazion.ch/) — **WooCommerce** — built (`vinazion/`, 305 wines)
+- [x] [Vergani](https://www.vergani.ch/) — **Shopify** — built (`shopify/`, 740 wines / 1000 variants)
+- [x] [AdvanVinum](https://advanvinum-wein.ch/) — **Shopify** — built (`shopify/`, 215 wines / 219 variants)
 - [ ] [Bindella Weinshop](https://www.bindella.ch/weinshop/) — BigCommerce — Italian focus, Zürich
 - [ ] [Bottleshop / more-than-wine](https://www.more-than-wine.com/) — PrestaShop — natural wine
 - [ ] [Arvi](https://arvi.ch/en/) — nopCommerce (.NET) — fine & rare

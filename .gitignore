@@ -3,7 +3,11 @@ transcripts
 result
 scores.json
 
-# realwines scraper — cache and output are reproducible, don't commit them
+# Merchant scrapers — cache and output are reproducible, don't commit them
 realwines/cache/
 realwines/wines.json
+vinazion/cache/
+vinazion/wines.json
+shopify/cache/
+shopify/*.json
 .claude/
