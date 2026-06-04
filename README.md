@@ -101,22 +101,23 @@ directory, following the same cache-first fetch + parse pattern.
 ### TODO: merchants in and around Zürich to scrape
 
 Wine merchants with online catalogues, roughly in priority order. Each needs its
-own fetcher/parser; note the e-commerce platform once known (WooCommerce stores
-can reuse the realwines approach).
+own fetcher/parser. **Read `notes/RECON.md` first** — it has the recon playbook,
+per-platform shortcuts, house conventions, and the notes template. Per-merchant
+recon lands in `notes/<merchant>.md`. Platforms below are from a first-pass
+fingerprint (verify before trusting). Checkbox = scraper built.
 
-- [ ] [Flaschenpost](https://www.flaschenpost.ch/) — largest CH retailer, 30k+ wines
-  - Recon in `notes/flaschenpost.md`
-- [ ] [Gerstl Weinselektionen](https://www.gerstl.ch/) — fine wines, since 1981
-- [ ] [Baur au Lac Vins](https://www.bauraulacvins.ch/) — 3k+ articles, 300+ producers
-- [ ] [Mövenpick Wein](https://www.moevenpick-wein.com/de/) — Zürich-Enge + Wein-Bar, 3k+ wines
-- [ ] [Smith & Smith](https://www.smithandsmith.ch/de) — Zürich (Grubenstrasse) + Bern, natural/contemporary
-- [ ] [Zweifel 1898](https://www.zweifel1898.ch/) — Zürich winery + shop (Höngg)
-- [ ] [Bindella Weinshop](https://www.bindella.ch/weinshop/) — Italian focus, Zürich
-- [ ] [Vergani](https://www.vergani.ch/) — Italian specialist, 130+ years, Zürich
-- [ ] [Landolt Weine](https://www.landolt-weine.ch/) — Zürich grower/merchant
-- [ ] [REB Wein](https://www.rebwein.ch/) — artisanal, central Zürich
-- [ ] [Le Passeur de Vin](https://www.passeurdevin.ch/) — Pelikanstrasse, Zürich
-- [ ] [Bottleshop / more-than-wine](https://www.more-than-wine.com/) — natural wine, Zweierstrasse + Nietengasse
-- [ ] [Arvi](https://arvi.ch/en/) — fine & rare (Bordeaux/Burgundy/Tuscany)
-- [ ] [Vinazion](https://www.vinazion.ch/) — multi-country, 14 pickup locations
-- [ ] [AdvanVinum](https://advanvinum-wein.ch/) — CH-wide online shop
+- [ ] [Flaschenpost](https://www.flaschenpost.ch/) — Next.js/RSC custom — 20k+ wines — recon ✅ `notes/flaschenpost.md`
+- [ ] [Vinazion](https://www.vinazion.ch/) — **WooCommerce** (305) — recon ✅ `notes/vinazion.md` (reuse realwines)
+- [ ] [Vergani](https://www.vergani.ch/) — **Shopify** (756) — recon ✅ `notes/vergani.md`
+- [ ] [AdvanVinum](https://advanvinum-wein.ch/) — **Shopify** (270) — recon ✅ `notes/advanvinum.md`
+- [ ] [Bindella Weinshop](https://www.bindella.ch/weinshop/) — BigCommerce — Italian focus, Zürich
+- [ ] [Bottleshop / more-than-wine](https://www.more-than-wine.com/) — PrestaShop — natural wine
+- [ ] [Arvi](https://arvi.ch/en/) — nopCommerce (.NET) — fine & rare
+- [ ] [Smith & Smith](https://www.smithandsmith.ch/de) — ASP.NET/IIS (likely nopCommerce) — Zürich + Bern
+- [ ] [Mövenpick Wein](https://www.moevenpick-wein.com/de/) — Magento — Zürich-Enge + Wein-Bar, 3k+ wines
+- [ ] [Landolt Weine](https://www.landolt-weine.ch/) — Shopware likely — Zürich grower/merchant
+- [ ] [Baur au Lac Vins](https://www.bauraulacvins.ch/) — Java app (JSESSIONID) — 3k+ articles
+- [ ] [Zweifel 1898](https://www.zweifel1898.ch/) — Java app (JSESSIONID) — Zürich winery (Höngg)
+- [ ] [Gerstl Weinselektionen](https://www.gerstl.ch/) — custom Node/Express headless — since 1981
+- [ ] [REB Wein](https://www.rebwein.ch/) — custom Laravel — central Zürich
+- [ ] [Le Passeur de Vin](https://www.passeurdevin.ch/) — unknown platform — Pelikanstrasse, Zürich
