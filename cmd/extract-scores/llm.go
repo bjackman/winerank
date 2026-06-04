@@ -146,14 +146,9 @@ const singlePassSchema = `{
         "type": "object",
         "properties": {
           "name": { "type": "string" },
-          "producer": { "type": "string" },
-          "vintage": { "type": "string" },
-          "region": { "type": "string" },
-          "score": { "type": ["integer", "null"] },
-          "notes_summary": { "type": "string" },
-          "matching_snippet": { "type": "string" }
+          "score": { "type": ["integer", "null"] }
         },
-        "required": ["name", "producer", "vintage", "region", "score", "notes_summary", "matching_snippet"],
+        "required": ["name", "score"],
         "additionalProperties": false
       }
     }

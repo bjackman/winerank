@@ -156,24 +156,14 @@ const singlePassSystemPrompt = `You are a wine review extractor. You will be giv
 
 For EVERY wine in the DESCRIPTION, extract:
 1. The wine name (use the exact name from the DESCRIPTION).
-2. The producer or winery name.
-3. The vintage year or "NV" for non-vintage.
-4. The region and country (e.g. "Paso Robles, USA" or "Bordeaux, France").
-5. The numerical score (on the 100-point scale) the reviewer assigned, if any.
-6. A brief 1-2 sentence summary of the tasting notes.
-7. A verbatim matching snippet of 1-2 sentences from the TRANSCRIPT where the review or score is discussed.
+2. The numerical score (on the 100-point scale) the reviewer assigned, if any.
 
 Return ONLY a JSON object with this schema:
 {
   "wines": [
     {
       "name": "Exact wine name from the description",
-      "producer": "Producer/winery name",
-      "vintage": "Vintage year or NV",
-      "region": "Region, country",
-      "score": 91,
-      "notes_summary": "Brief 1-2 sentence summary of the tasting notes.",
-      "matching_snippet": "Verbatim quote from the transcript."
+      "score": 91
     }
   ]
 }
@@ -181,7 +171,6 @@ Return ONLY a JSON object with this schema:
 Rules:
 - Output exactly one entry for each wine listed in the DESCRIPTION, in the same order. Do not skip any wine and do not invent wines that are not in the DESCRIPTION.
 - Set "score" to null if no numerical score is explicitly assigned to that wine.
-- The "matching_snippet" must be an exact verbatim substring from the TRANSCRIPT.
 - Return ONLY the JSON object, no other text.`
 
 func BuildSegmentUserMessage(description, numberedTranscript string) string {

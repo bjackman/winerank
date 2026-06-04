@@ -66,14 +66,17 @@ type extractResponse struct {
 	MatchingSnippet string `json:"matching_snippet"`
 }
 
-// Structures for final scores.json output (omitting internal review metadata)
+// Structures for final scores.json output (omitting internal review metadata).
+// The single-pass strategy extracts only name + score, so the descriptive
+// fields are omitempty: they appear only when the multi-pass strategy populates
+// them, keeping single-pass output to the two fields the eval grades.
 type FinalWineScore struct {
 	Name         string `json:"name"`
-	Producer     string `json:"producer"`
-	Vintage      string `json:"vintage"`
-	Region       string `json:"region"`
+	Producer     string `json:"producer,omitempty"`
+	Vintage      string `json:"vintage,omitempty"`
+	Region       string `json:"region,omitempty"`
 	Score        *int   `json:"score"` // nil if wine was discussed but not scored
-	NotesSummary string `json:"notes_summary"`
+	NotesSummary string `json:"notes_summary,omitempty"`
 }
 
 // ExtractStats records the cost of extracting one video: wall-clock time and
