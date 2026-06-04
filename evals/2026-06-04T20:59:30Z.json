@@ -1,0 +1,436 @@
+{
+  "provenance": {
+    "timestamp": "2026-06-04T20:59:30Z",
+    "git_commit": "2c809ecac63e7bdcc7e742cb5a6a500c7235f820",
+    "git_dirty": false,
+    "extractor": "/tmp/wr-extract-scores --strategy=single-pass",
+    "server_url": "http://fw13:8080",
+    "model_id": "unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF:Q4_K_M",
+    "server_props": {
+      "default_generation_settings": {
+        "params": {
+          "seed": 4294967295,
+          "temperature": 0.800000011920929,
+          "dynatemp_range": 0.0,
+          "dynatemp_exponent": 1.0,
+          "top_k": 40,
+          "top_p": 0.949999988079071,
+          "min_p": 0.05000000074505806,
+          "top_n_sigma": -1.0,
+          "xtc_probability": 0.0,
+          "xtc_threshold": 0.10000000149011612,
+          "typical_p": 1.0,
+          "repeat_last_n": 64,
+          "repeat_penalty": 1.0,
+          "presence_penalty": 0.0,
+          "frequency_penalty": 0.0,
+          "dry_multiplier": 0.0,
+          "dry_base": 1.75,
+          "dry_allowed_length": 2,
+          "dry_penalty_last_n": -1,
+          "mirostat": 0,
+          "mirostat_tau": 5.0,
+          "mirostat_eta": 0.10000000149011612,
+          "max_tokens": -1,
+          "n_predict": -1,
+          "n_keep": 0,
+          "n_discard": 0,
+          "ignore_eos": false,
+          "stream": true,
+          "n_probs": 0,
+          "min_keep": 0,
+          "chat_format": "Content-only",
+          "reasoning_format": "none",
+          "reasoning_in_content": false,
+          "generation_prompt": "",
+          "samplers": [
+            "penalties",
+            "dry",
+            "top_n_sigma",
+            "top_k",
+            "typ_p",
+            "top_p",
+            "min_p",
+            "xtc",
+            "temperature"
+          ],
+          "speculative.types": "none",
+          "timings_per_token": false,
+          "post_sampling_probs": false,
+          "backend_sampling": false,
+          "lora": []
+        },
+        "n_ctx": 16384
+      },
+      "total_slots": 1,
+      "model_alias": "unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF:Q4_K_M",
+      "model_path": "/home/brendan/.cache/huggingface/hub/models--unsloth--Qwen3-30B-A3B-Instruct-2507-GGUF/snapshots/eea7b2be5805a5f151f8847ede8e5f9a9284bf77/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
+      "modalities": {
+        "vision": false,
+        "audio": false
+      },
+      "media_marker": "\u003c__media_9uXAhY4S11MUeB6cshfkJUPGJehSK5E4__\u003e",
+      "endpoint_slots": true,
+      "endpoint_props": false,
+      "endpoint_metrics": false,
+      "ui": true,
+      "ui_settings": {},
+      "webui": true,
+      "webui_settings": {},
+      "chat_template": "{%- if tools %}\n    {{- '\u003c|im_start|\u003esystem\\n' }}\n    {%- if messages[0].role == 'system' %}\n        {{- messages[0].content + '\\n\\n' }}\n    {%- endif %}\n    {{- \"# Tools\\n\\nYou may call one or more functions to assist with the user query.\\n\\nYou are provided with function signatures within \u003ctools\u003e\u003c/tools\u003e XML tags:\\n\u003ctools\u003e\" }}\n    {%- for tool in tools %}\n        {{- \"\\n\" }}\n        {{- tool | tojson }}\n    {%- endfor %}\n    {{- \"\\n\u003c/tools\u003e\\n\\nFor each function call, return a json object with function name and arguments within \u003ctool_call\u003e\u003c/tool_call\u003e XML tags:\\n\u003ctool_call\u003e\\n{\\\"name\\\": \u003cfunction-name\u003e, \\\"arguments\\\": \u003cargs-json-object\u003e}\\n\u003c/tool_call\u003e\u003c|im_end|\u003e\\n\" }}\n{%- else %}\n    {%- if messages[0].role == 'system' %}\n        {{- '\u003c|im_start|\u003esystem\\n' + messages[0].content + '\u003c|im_end|\u003e\\n' }}\n    {%- endif %}\n{%- endif %}\n{%- set ns = namespace(multi_step_tool=true, last_query_index=messages|length - 1) %}\n{%- for message in messages[::-1] %}\n    {%- set index = (messages|length - 1) - loop.index0 %}\n    {%- if ns.multi_step_tool and message.role == \"user\" and message.content is string and not(message.content.startswith('\u003ctool_response\u003e') and message.content.endswith('\u003c/tool_response\u003e')) %}\n        {%- set ns.multi_step_tool = false %}\n        {%- set ns.last_query_index = index %}\n    {%- endif %}\n{%- endfor %}\n{%- for message in messages %}\n    {%- if message.content is string %}\n        {%- set content = message.content %}\n    {%- else %}\n        {%- set content = '' %}\n    {%- endif %}\n    {%- if (message.role == \"user\") or (message.role == \"system\" and not loop.first) %}\n        {{- '\u003c|im_start|\u003e' + message.role + '\\n' + content + '\u003c|im_end|\u003e' + '\\n' }}\n    {%- elif message.role == \"assistant\" %}\n        {%- set reasoning_content = '' %}\n        {%- if message.reasoning_content is string %}\n            {%- set reasoning_content = message.reasoning_content %}\n        {%- else %}\n            {%- if '\u003c/think\u003e' in content %}\n                {%- set reasoning_content = content.split('\u003c/think\u003e')[0].rstrip('\\n').split('\u003cthink\u003e')[-1].lstrip('\\n') %}\n                {%- set content = content.split('\u003c/think\u003e')[-1].lstrip('\\n') %}\n            {%- endif %}\n        {%- endif %}\n        {%- if loop.index0 \u003e ns.last_query_index %}\n            {%- if loop.last or (not loop.last and reasoning_content) %}\n                {{- '\u003c|im_start|\u003e' + message.role + '\\n\u003cthink\u003e\\n' + reasoning_content.strip('\\n') + '\\n\u003c/think\u003e\\n\\n' + content.lstrip('\\n') }}\n            {%- else %}\n                {{- '\u003c|im_start|\u003e' + message.role + '\\n' + content }}\n            {%- endif %}\n        {%- else %}\n            {{- '\u003c|im_start|\u003e' + message.role + '\\n' + content }}\n        {%- endif %}\n        {%- if message.tool_calls %}\n            {%- for tool_call in message.tool_calls %}\n                {%- if (loop.first and content) or (not loop.first) %}\n                    {{- '\\n' }}\n                {%- endif %}\n                {%- if tool_call.function %}\n                    {%- set tool_call = tool_call.function %}\n                {%- endif %}\n                {{- '\u003ctool_call\u003e\\n{\"name\": \"' }}\n                {{- tool_call.name }}\n                {{- '\", \"arguments\": ' }}\n                {%- if tool_call.arguments is string %}\n                    {{- tool_call.arguments }}\n                {%- else %}\n                    {{- tool_call.arguments | tojson }}\n                {%- endif %}\n                {{- '}\\n\u003c/tool_call\u003e' }}\n            {%- endfor %}\n        {%- endif %}\n        {{- '\u003c|im_end|\u003e\\n' }}\n    {%- elif message.role == \"tool\" %}\n        {%- if loop.first or (messages[loop.index0 - 1].role != \"tool\") %}\n            {{- '\u003c|im_start|\u003euser' }}\n        {%- endif %}\n        {{- '\\n\u003ctool_response\u003e\\n' }}\n        {{- content }}\n        {{- '\\n\u003c/tool_response\u003e' }}\n        {%- if loop.last or (messages[loop.index0 + 1].role != \"tool\") %}\n            {{- '\u003c|im_end|\u003e\\n' }}\n        {%- endif %}\n    {%- endif %}\n{%- endfor %}\n{%- if add_generation_prompt %}\n    {{- '\u003c|im_start|\u003eassistant\\n' }}\n{%- endif %}",
+      "chat_template_caps": {
+        "supports_object_arguments": true,
+        "supports_parallel_tool_calls": true,
+        "supports_preserve_reasoning": true,
+        "supports_string_content": true,
+        "supports_system_role": true,
+        "supports_tool_calls": true,
+        "supports_tools": true,
+        "supports_typed_content": false
+      },
+      "bos_token": ",",
+      "eos_token": "\u003c|im_end|\u003e",
+      "build_info": "b9309-6d57c26",
+      "is_sleeping": false,
+      "cors_proxy_enabled": false
+    },
+    "server_models": {
+      "models": [
+        {
+          "name": "unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF:Q4_K_M",
+          "model": "unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF:Q4_K_M",
+          "modified_at": "",
+          "size": "",
+          "digest": "",
+          "type": "model",
+          "description": "",
+          "tags": [
+            ""
+          ],
+          "capabilities": [
+            "completion"
+          ],
+          "parameters": "",
+          "details": {
+            "parent_model": "",
+            "format": "gguf",
+            "family": "",
+            "families": [
+              ""
+            ],
+            "parameter_size": "",
+            "quantization_level": ""
+          }
+        }
+      ],
+      "object": "list",
+      "data": [
+        {
+          "id": "unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF:Q4_K_M",
+          "aliases": [
+            "unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF:Q4_K_M"
+          ],
+          "tags": [],
+          "object": "model",
+          "created": 1780607374,
+          "owned_by": "llamacpp",
+          "meta": {
+            "vocab_type": 2,
+            "n_vocab": 151936,
+            "n_ctx": 16384,
+            "n_ctx_train": 262144,
+            "n_embd": 2048,
+            "n_params": 30532122624,
+            "size": 18550716416
+          }
+        }
+      ]
+    }
+  },
+  "summary": "recall 26/27 (96.3%)  score-match 26/26 (100.0%)  unjudged 1",
+  "gt_count": 27,
+  "matched_count": 26,
+  "score_match_count": 26,
+  "unjudged_count": 1,
+  "performance": {
+    "videos": 4,
+    "total_requests": 4,
+    "total_prompt_tokens": 25605,
+    "total_completion_tokens": 5777,
+    "total_duration_ms": 604512,
+    "completion_tokens_per_sec": 9.556468688793606
+  },
+  "videos": [
+    {
+      "video_id": "25ld_xwvGDk",
+      "matched": [
+        {
+          "gt_wine": "2022 Daou Vineyards Cabernet Sauvignon, Paso Robles, USA",
+          "gt_score": 91,
+          "extracted_wine": "2022 Daou Vineyards Cabernet Sauvignon, Paso Robles, USA",
+          "extracted_score": 91,
+          "score_match": true,
+          "similarity": 1
+        },
+        {
+          "gt_wine": "2023 Te Mata Estate 'Awatea' Cabernets - Merlot, Hawke's Bay, New Zealand",
+          "gt_score": 91,
+          "extracted_wine": "2023 Te Mata Estate 'Awatea' Cabernets - Merlot, Hawke's Bay, New Zealand",
+          "extracted_score": 91,
+          "score_match": true,
+          "similarity": 1
+        },
+        {
+          "gt_wine": "2017 Polish Hill River Cabernet Merlot, Australia",
+          "gt_score": 94,
+          "extracted_wine": "2017 Polish Hill River Cabernet Merlot, Australia",
+          "extracted_score": 94,
+          "score_match": true,
+          "similarity": 1
+        },
+        {
+          "gt_wine": "2023 Castello di Bolgheri Varvara Bolgheri, Tuscany, Italy",
+          "gt_score": 92,
+          "extracted_wine": "2023 Castello di Bolgheri Varvara Bolgheri, Tuscany, Italy",
+          "extracted_score": 92,
+          "score_match": true,
+          "similarity": 1
+        },
+        {
+          "gt_wine": "2018 Chateau Le Boscq, Saint-Estephe, France",
+          "gt_score": 91,
+          "extracted_wine": "2018 Chateau Le Boscq, Saint-Estephe, France",
+          "extracted_score": 91,
+          "score_match": true,
+          "similarity": 1
+        },
+        {
+          "gt_wine": "2019 VIK 'Milla Cala', Millahue, Chile",
+          "gt_score": 95,
+          "extracted_wine": "2019 VIK 'Milla Cala', Millahue, Chile",
+          "extracted_score": 95,
+          "score_match": true,
+          "similarity": 1
+        },
+        {
+          "gt_wine": "2022 Le Riche Richesse, Stellenbosch, South Africa",
+          "gt_score": 93,
+          "extracted_wine": "2022 Le Riche Richesse, Stellenbosch, South Africa",
+          "extracted_score": 93,
+          "score_match": true,
+          "similarity": 1
+        }
+      ],
+      "unmatched_gt": null,
+      "unjudged": null,
+      "stats": {
+        "requests": 1,
+        "prompt_tokens": 6077,
+        "completion_tokens": 1403,
+        "duration_ms": 120337
+      }
+    },
+    {
+      "video_id": "31axP6XC0MI",
+      "matched": [
+        {
+          "gt_wine": "2023 Michele Chiarlo Le Orme, Barbera d'Asti Superiore DOCG, Italy",
+          "gt_score": 89,
+          "extracted_wine": "2023 Michele Chiarlo Le Orme, Barbera d'Asti Superiore DOCG, Italy",
+          "extracted_score": 89,
+          "score_match": true,
+          "similarity": 1
+        },
+        {
+          "gt_wine": "2022 Chateau Labegorce, Margaux, France",
+          "gt_score": 91,
+          "extracted_wine": "2022 Chateau Labegorce, Margaux, France",
+          "extracted_score": 91,
+          "score_match": true,
+          "similarity": 1
+        },
+        {
+          "gt_wine": "2023 Bodega Garzon Reserva Tannat, Maldonado, Uruguay",
+          "gt_score": 90,
+          "extracted_wine": "2023 Bodega Garzon Reserva Tannat, Maldonado, Uruguay",
+          "extracted_score": 90,
+          "score_match": true,
+          "similarity": 1
+        },
+        {
+          "gt_wine": "2023 Wente Vineyards Morning Fog Chardonnay, Livermore Valley, USA",
+          "gt_score": 88,
+          "extracted_wine": "2023 Wente Vineyards Morning Fog Chardonnay, Livermore Valley, USA",
+          "extracted_score": 88,
+          "score_match": true,
+          "similarity": 1
+        },
+        {
+          "gt_wine": "2022 La Crema Willamette Valley Pinot Noir, Oregon, USA",
+          "gt_score": 92,
+          "extracted_wine": "2022 La Crema Willamette Valley Pinot Noir, Oregon, USA",
+          "extracted_score": 92,
+          "score_match": true,
+          "similarity": 1
+        },
+        {
+          "gt_wine": "2022 Tenuta di Arceno Chianti Classico DOCG, Tuscany, Italy",
+          "gt_score": 91,
+          "extracted_wine": "2022 Tenuta di Arceno Chianti Classico DOCG, Tuscany, Italy",
+          "extracted_score": 91,
+          "score_match": true,
+          "similarity": 1
+        },
+        {
+          "gt_wine": "2021 Bodegas Muga Reserva - Crianza, Rioja DOCa, Spain",
+          "gt_score": 93,
+          "extracted_wine": "2021 Bodegas Muga Reserva - Crianza, Rioja DOCa, Spain",
+          "extracted_score": 93,
+          "score_match": true,
+          "similarity": 1
+        }
+      ],
+      "unmatched_gt": null,
+      "unjudged": null,
+      "stats": {
+        "requests": 1,
+        "prompt_tokens": 6717,
+        "completion_tokens": 1966,
+        "duration_ms": 208264
+      }
+    },
+    {
+      "video_id": "Bk4PHrQG0vA",
+      "matched": [
+        {
+          "gt_wine": "2022 La Rioja Alta S.A. Vina Alberdi Crianza, Rioja DOCa, Spain",
+          "gt_score": 90,
+          "extracted_wine": "2022 La Rioja Alta S.A. Vina Alberdi Crianza, Rioja DOCa, Spain",
+          "extracted_score": 90,
+          "score_match": true,
+          "similarity": 1
+        },
+        {
+          "gt_wine": "2022 Terrazas de los Andes Reserva Malbec, Mendoza, Argentina",
+          "gt_score": 91,
+          "extracted_wine": "2022 Terrazas de los Andes Reserva Malbec, Mendoza, Argentina",
+          "extracted_score": 91,
+          "score_match": true,
+          "similarity": 1
+        },
+        {
+          "gt_wine": "2023 Craggy Range Te Muna Road Vineyard Sauvignon Blanc, Martinborough, New Zealand",
+          "gt_score": 90,
+          "extracted_wine": "2023 Craggy Range Te Muna Road Vineyard Sauvignon Blanc, Martinborough, New Zealand",
+          "extracted_score": 90,
+          "score_match": true,
+          "similarity": 1
+        },
+        {
+          "gt_wine": "2021 Marchesi Antinori Villa Antinori Toscana IGT, Tuscany, Italy",
+          "gt_score": 91,
+          "extracted_wine": "2021 Marchesi Antinori Villa Antinori Toscana IGT, Tuscany, Italy",
+          "extracted_score": 91,
+          "score_match": true,
+          "similarity": 1
+        },
+        {
+          "gt_wine": "2022 Seghesio Family Vineyards Zinfandel, Sonoma County, USA",
+          "gt_score": 93,
+          "extracted_wine": "2022 Seghesio Family Vineyards Zinfandel, Sonoma County, USA",
+          "extracted_score": 93,
+          "score_match": true,
+          "similarity": 1
+        }
+      ],
+      "unmatched_gt": [
+        {
+          "video_id": "Bk4PHrQG0vA",
+          "wine_name": "2021 Ruffino Riserva Ducale, Chianti Classico Riserva DOCG, Italy",
+          "score": 90
+        }
+      ],
+      "unjudged": [
+        {
+          "name": "2019 Ruffino Riserva Ducale, Chianti Classico Riserva DOCG, Italy",
+          "score": 90
+        }
+      ],
+      "stats": {
+        "requests": 1,
+        "prompt_tokens": 5812,
+        "completion_tokens": 1216,
+        "duration_ms": 132614
+      }
+    },
+    {
+      "video_id": "YMEHW8PGQcs",
+      "matched": [
+        {
+          "gt_wine": "2023 Koehler-Ruprecht Kallstadter Saumagen Riesling Kabinett Trocken, Pfalz, Germany",
+          "gt_score": 91,
+          "extracted_wine": "2023 Koehler-Ruprecht Kallstadter Saumagen Riesling Kabinett Trocken, Pfalz, Germany",
+          "extracted_score": 91,
+          "score_match": true,
+          "similarity": 1
+        },
+        {
+          "gt_wine": "2015 J.B. Becker Wallufer Berg Bildstock Riesling Kabinett, Rheingau, Germany",
+          "gt_score": 92,
+          "extracted_wine": "2015 J.B. Becker Wallufer Berg Bildstock Riesling Kabinett, Rheingau, Germany",
+          "extracted_score": 92,
+          "score_match": true,
+          "similarity": 1
+        },
+        {
+          "gt_wine": "2024 Weingut Emrich-Schonleber Monzinger Riesling Kabinett, Nahe, Germany",
+          "gt_score": 92,
+          "extracted_wine": "2024 Weingut Emrich-Schonleber Monzinger Riesling Kabinett, Nahe, Germany",
+          "extracted_score": 92,
+          "score_match": true,
+          "similarity": 1
+        },
+        {
+          "gt_wine": "2024 Weingut Max Ferd. Richter Brauneberger Juffer Riesling Kabinett Fass 4, Mosel, Germany",
+          "gt_score": 91,
+          "extracted_wine": "2024 Weingut Max Ferd. Richter Brauneberger Juffer Riesling Kabinett Fass 4, Mosel, Germany",
+          "extracted_score": 91,
+          "score_match": true,
+          "similarity": 1
+        },
+        {
+          "gt_wine": "2023 Forstmeister Geltz-Zilliken Saarburger Rausch Riesling Kabinett, Mosel, Germany",
+          "gt_score": 94,
+          "extracted_wine": "2023 Forstmeister Geltz-Zilliken Saarburger Rausch Riesling Kabinett, Mosel, Germany",
+          "extracted_score": 94,
+          "score_match": true,
+          "similarity": 1
+        },
+        {
+          "gt_wine": "2018 Maximin Grunhauser Abtsberg Riesling Kabinett, Mosel, Germany",
+          "gt_score": 94,
+          "extracted_wine": "2018 Maximin Grunhauser Abtsberg Riesling Kabinett, Mosel, Germany",
+          "extracted_score": 94,
+          "score_match": true,
+          "similarity": 1
+        },
+        {
+          "gt_wine": "2023 Egon Muller Scharzhofberger Riesling Kabinett, Mosel, Germany",
+          "gt_score": 95,
+          "extracted_wine": "2023 Egon Muller Scharzhofberger Riesling Kabinett, Mosel, Germany",
+          "extracted_score": 95,
+          "score_match": true,
+          "similarity": 1
+        }
+      ],
+      "unmatched_gt": null,
+      "unjudged": null,
+      "stats": {
+        "requests": 1,
+        "prompt_tokens": 6999,
+        "completion_tokens": 1192,
+        "duration_ms": 143297
+      }
+    }
+  ]
+}
