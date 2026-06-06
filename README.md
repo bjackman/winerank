@@ -49,6 +49,13 @@ relies on the prompt + code-fence stripping to recover JSON).
 The extractor talks to `http://localhost:8080` by default. Point it elsewhere
 with `--server`, or set `LLAMA_SERVER_URL` (the flag wins if both are given).
 
+`llama-server` supports a "router mode" where instead of specifying the model in
+the invocation the client can request the model but since the most reasonable
+setups depends completely on the server hardware, I think the right way to do
+that is to set up a "menu" of supported models/inference configs (this is
+supported by `llama-server`). For this project, no need to bother with that,
+just hardcode the server args.
+
 ### Eval
 
 Grade the extractor against `scores_groundtruth.json`:
