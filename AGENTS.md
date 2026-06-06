@@ -4,9 +4,21 @@ Working notes for agents. The `README.md` covers what the project *does* (transc
 fetching, score extraction, eval, scraping) — read it first. This file covers the
 build/dev mechanics that aren't obvious from the code.
 
-## Go toolchain comes from nix, not the default devShell
+## Go and Python toolchains come from nix
 
-There is **no `go` on `PATH`** by default, and `nix develop` (the default shell) does
+There is **no `go` or `python` on `PATH`** by default. The default `nix develop` shell
+provides Python + llama-cpp but **not** Go. Always invoke Python the same way as Go —
+via the appropriate nix environment:
+
+```sh
+# one-off Python script
+nix develop -c python scraping/vinazion/parse.py --from-cache
+
+# inline Python (e.g. quick JSON inspection)
+nix develop -c python -c "import json, sys; ..."
+```
+
+The Go toolchain lives in the `buildGoModule` build environments. `nix develop` (the default shell) does
 **not** provide one — it only has Python + llama-cpp. The Go toolchain lives in the
 `buildGoModule` build environments. To get a shell/command with `go`, enter the env for
 the module you're touching:
