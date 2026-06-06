@@ -28,7 +28,10 @@ type Client struct {
 	ObserveAfter time.Duration
 	// Strategy selects the extraction pipeline: "multi-pass" (segment then
 	// per-wine extract) or "single-pass" (one prompt for all wines).
-	Strategy   string
+	Strategy string
+	// Seed, if non-nil, is sent as the "seed" field in every chat completions
+	// request, making sampling deterministic on the server side.
+	Seed       *int
 	HTTPClient *http.Client
 }
 
@@ -51,6 +54,7 @@ type chatRequest struct {
 	Model              string         `json:"model,omitempty"`
 	Messages           []chatMessage  `json:"messages"`
 	Temperature        float64        `json:"temperature"`
+	Seed               *int           `json:"seed,omitempty"`
 	ResponseFormat     *respFormat    `json:"response_format,omitempty"`
 	MaxTokens          int            `json:"max_tokens,omitempty"`
 	ChatTemplateKwargs map[string]any `json:"chat_template_kwargs,omitempty"`
@@ -328,6 +332,7 @@ func (c *Client) doChatRequest(ctx context.Context, systemMsg, userMsg string, m
 			{Role: "user", Content: userMsg},
 		},
 		Temperature:    0.1,
+		Seed:           c.Seed,
 		ResponseFormat: respFmt,
 		MaxTokens:      maxTokens,
 	}
