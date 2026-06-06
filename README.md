@@ -180,6 +180,10 @@ nix develop -c python scraping/gerstl/parse.py --from-cache --output scraping/ge
 # REB Wein (Laravel, listing-card scraping, ~392 wines — use --max-pages to sample)
 nix develop -c python scraping/rebwein/fetch.py [--max-pages N]
 nix develop -c python scraping/rebwein/parse.py --from-cache --output scraping/rebwein/wines.json
+
+# Landolt Weine (Shopware 6, sitemap-driven, ~693 products — use --max-products to sample)
+nix develop -c python scraping/landolt/fetch.py [--max-products N]
+nix develop -c python scraping/landolt/parse.py --from-cache --output scraping/landolt/wines.json
 ```
 
 `notes/RECON.md` is the recon playbook + per-platform shortcuts for adding the
@@ -203,7 +207,7 @@ Legend: 🔧 code written, untested · 🔨 partial code (fetch only, no parse) 
 - [x] [Arvi](https://arvi.ch/en/) — nopCommerce (.NET) — `scraping/arvi/` — large fine-wine catalogue (pager reports ~2070 pages × 13) — tested (fetch + parse verified live on a 3-page sample; category `/en/Wines`, `.item-box` card parsing, producer/vintage/bottle from card + URL slug)
 - [x] [Smith & Smith](https://www.smithandsmith.ch/de) — custom React/ASP.NET (IIS), *not* nopCommerce — `scraping/smith-and-smith/` — ~2984 products — tested (fetch + parse verified live on a 3-page sample; listing `/de/shop?page=N`, `card artikel-box` parsing gives producer/region/country/vintage/bottle/price)
 - 📋 [Bindella Weinshop](https://www.bindella.ch/weinshop/) — BigCommerce — recon ✅ `notes/bindella.md` — **no code** (egress proxy blocked; platform unconfirmed)
-- 📋 [Landolt Weine](https://www.landolt-weine.ch/) — Shopware 6 — recon ✅ `notes/landolt.md` — **no code** (egress proxy blocked; platform unconfirmed)
+- [x] [Landolt Weine](https://www.landolt-weine.ch/) — Shopware 6 (storefront on landolt-weine.nextag.ch) — `scraping/landolt/` — recon ✅ `notes/landolt.md` — ~693 products (sitemap-driven; microdata + properties table) — tested (fetch + parse verified live on a 25-product sample; vintage sparse on own-label range)
 - [x] [Mövenpick Wein](https://www.moevenpick-wein.com/de/) — Magento — `scraping/moevenpick/` — recon ✅ `notes/moevenpick.md` — ~4300 wines (sitemap-driven; JSON-LD PDPs) — tested (fetch + parse verified live on a 20-product sample; producer not exposed in JSON-LD)
 - [x] [Baur au Lac Vins](https://www.bauraulacvins.ch/) — Java app (JSESSIONID) — `scraping/bauraulac/` — recon ✅ `notes/bauraulac.md` — ~2342 wines (sitemap-driven; `data-shop-*` attrs + URL facets) — tested (fetch + parse verified live on a 20-product sample; producer not exposed)
 - [x] [Zweifel 1898](https://www.zweifel1898.ch/) — Java app (JSESSIONID), same platform as Baur au Lac — `scraping/zweifel/` — recon ✅ `notes/zweifel.md` — ~781 wines (sitemap-driven; microdata PDPs + URL facets) — tested (fetch + parse verified live on a 20-product sample)

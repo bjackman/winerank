@@ -2,21 +2,23 @@
 
 Recon for a `landolt/` scraper analogous to `realwines/`. Captured 2026-06-06.
 
-## TL;DR
-- Platform: **Shopware 6** (first-pass fingerprint: `session-` cookie + Vue; unverified —
-  network blocked from this environment; see Open questions). Data source: Shopware 6
-  Store API at `POST /store-api/product`.
-- Best target: `POST https://www.landolt-weine.ch/store-api/product` with JSON body
-  `{"limit":100,"page":N,"filter":[{"type":"equals","field":"active","value":true}]}`.
-  Requires `sw-access-key` header (find value in page source: `<meta name="shopware-access-key"
-  content="...">` or `data-access-key` attribute in the main `<body>` or `<div id="app">`).
-  Pagination: `page` param (1-indexed); stop when `elements` array length < `limit`.
-- Total products: unknown (network not reachable from build environment).
-- Gotchas: network was blocked (`x-deny-reason: host_not_allowed`) during recon —
-  all Shopware patterns below are based on the known-platform fingerprint from
-  `RECON.md`, not live verification. Run `--refresh` to populate cache on a machine
-  with real internet. Price in Shopware API is a decimal float (CHF) — multiply × 100
-  and round to get minor units (rappen).
+## TL;DR (verified live 2026-06-06 — supersedes the store-api guess below)
+- Platform: **Shopware 6 confirmed** (`cms-element`, `product-box`). The
+  storefront is served from **landolt-weine.nextag.ch** (www.landolt-weine.ch is
+  a front). PDPs are server-rendered with schema.org microdata — no Store API
+  key needed, so the scraper just parses HTML rather than calling `/store-api`.
+- **Approach: sitemap-driven** (`scraping/landolt/`). `/sitemap.xml` → one
+  gzipped sitemap (783 locs); **693 products** as `/<slug>/<number>`. Fetch each
+  PDP, parse microdata + the properties table.
+- Per-product data: `<h1>` = name (note: `itemprop="name"` is the *manufacturer*,
+  not the product), `itemprop="price"`/`priceCurrency`, and a properties table
+  with `Produzent`, `Herkunft` (= "Country/Region"), `Traubensorten` (grapes),
+  `Alkoholgehalt`, `Gebinde` (bottles-per-case, not ml), `Ort` (winery village).
+  Stock from the `product-delivery-information` block.
+- **Gotchas:** no `Jahrgang` property (vintage is sparse — many are own-label
+  "Sélection Landolt" wines); the first sitemap entries are gift/accessory items
+  (Gutschein/Verpackung) that have no producer. ~693 products → `--max-products`
+  for sampling.
 
 ## Platform / fingerprint
 - First-pass fingerprint: Shopware 6 (from README table, 2026-06-04) — `session-` cookie
