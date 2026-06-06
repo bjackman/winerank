@@ -138,12 +138,11 @@ per-platform shortcuts, house conventions, and the notes template. Per-merchant
 recon lands in `notes/<merchant>.md`. Platforms below are from a first-pass
 fingerprint (verify before trusting).
 
-Legend: ✅ tested against live site · 🔧 code written, untested · 🔨 partial
-code (fetch only, no parse) · 📋 recon notes only · ☐ not started
+Legend: 🔧 code written, untested · 🔨 partial code (fetch only, no parse) · 📋 recon notes only · ☐ not started
 
-- ✅ [Vinazion](https://www.vinazion.ch/) — WooCommerce — `scraping/vinazion/` — 305 wines confirmed
-- ✅ [Vergani](https://www.vergani.ch/) — Shopify — `scraping/shopify/` — 740 wines / 1000 variants confirmed
-- ✅ [AdvanVinum](https://advanvinum-wein.ch/) — Shopify — `scraping/shopify/` — 215 wines / 219 variants confirmed
+- [x] [Vinazion](https://www.vinazion.ch/) — WooCommerce — `scraping/vinazion/` — ~305 wines
+- [x] [Vergani](https://www.vergani.ch/) — Shopify — `scraping/shopify/` — ~740 wines / ~1000 variants
+- [x] [AdvanVinum](https://advanvinum-wein.ch/) — Shopify — `scraping/shopify/` — ~215 wines / ~219 variants
 - 🔧 [Flaschenpost](https://www.flaschenpost.ch/) — Next.js/RSC — `scraping/flaschenpost/` — recon ✅ `notes/flaschenpost.md` — 20k+ wines — **untested** (recon was done with real curl output; code not run against live site)
 - 🔧 [Bottleshop / more-than-wine](https://www.more-than-wine.com/) — PrestaShop — `scraping/more-than-wine/` — recon ✅ `notes/more-than-wine.md` — **untested** (egress proxy blocked all recon requests; platform and category URL unconfirmed)
 - 🔨 [Arvi](https://arvi.ch/en/) — nopCommerce (.NET) — `scraping/arvi/fetch.py` only — **no parse.py, no recon notes** (egress proxy blocked; code based on nopCommerce conventions only)
