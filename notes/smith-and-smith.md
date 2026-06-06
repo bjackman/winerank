@@ -2,19 +2,22 @@
 
 Recon for a `smith-and-smith/` scraper analogous to `realwines/`. Captured 2026-06-06.
 
-## TL;DR
-- Platform: **ASP.NET/IIS (likely nopCommerce)** — first-pass fingerprint from
-  README; could not be confirmed — site returned `403 x-deny-reason:
-  host_not_allowed` (Anthropic egress proxy) for every request. All conventions
-  below follow the nopCommerce known-platform shortcut from RECON.md.
-- Best target: German-locale category HTML at
-  `https://www.smithandsmith.ch/de/wein?pagenumber=N` (most likely; also try
-  `/de/weine`, `/de/wine`). Pagination: `?pagenumber=N` (nopCommerce standard).
-- Total products: **unknown** — could not fetch. Smith & Smith is a Zürich + Bern
-  boutique merchant; rough estimate 300–600 SKUs.
-- Gotchas: egress proxy blocks all requests from this environment. Must run
-  fetch.py from a residential or whitelisted IP. Category URL slug not verified —
-  update `WINE_CATEGORY_URL` in fetch.py once live access is available.
+## TL;DR (verified live 2026-06-06 — supersedes the nopCommerce guess below)
+- Platform: **custom React/ASP.NET on Microsoft-IIS — NOT nopCommerce.** The
+  homepage carries `Server: Microsoft-IIS/10.0` + `X-Powered-By: ASP.NET` but
+  none of the nopCommerce body markers (`item-box`, `?pagenumber=`, `/Themes/`).
+- Target: the full catalogue listing at `https://www.smithandsmith.ch/de/shop`,
+  paginated with **`?page=N`** (1-indexed), **27 product cards per page**.
+  Out-of-range pages return 0 cards.
+- Total products: **~2'984** (from `<div class="h4">2'984 Produkte</div>` on the
+  listing) → ~111 pages.
+- Product cards: `<div class="card artikel-box" data-artikelid="…">` with
+  `artikel-box__herkunft` (producer + "Region, Country"), `artikel-box__name`,
+  `artikel-box__eigenschaften` (vintage + bottle size), and
+  `artikel-box__preisaktuell` (price, e.g. `CHF <!-- -->43.00`). No JSON-LD
+  products (only an Organization block). See `scraping/smith-and-smith/parse.py`.
+- The earlier recon below assumed nopCommerce because the egress proxy blocked
+  every request at implementation time; it's kept for history but is wrong.
 
 ## Platform / fingerprint
 

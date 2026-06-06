@@ -156,6 +156,10 @@ nix develop -c python scraping/more-than-wine/parse.py --from-cache --output scr
 # Arvi (nopCommerce, large fine-wine catalogue — use --max-pages to sample)
 nix develop -c python scraping/arvi/fetch.py [--max-pages N]
 nix develop -c python scraping/arvi/parse.py --from-cache --output scraping/arvi/wines.json
+
+# Smith & Smith (custom React/ASP.NET, ~2984 products — use --max-pages to sample)
+nix develop -c python scraping/smith-and-smith/fetch.py [--max-pages N]
+nix develop -c python scraping/smith-and-smith/parse.py --from-cache --output scraping/smith-and-smith/wines.json
 ```
 
 `notes/RECON.md` is the recon playbook + per-platform shortcuts for adding the
@@ -177,7 +181,7 @@ Legend: 🔧 code written, untested · 🔨 partial code (fetch only, no parse) 
 - [x] [Flaschenpost](https://www.flaschenpost.ch/) — Next.js/RSC — `scraping/flaschenpost/` — recon ✅ `notes/flaschenpost.md` — ~20.6k wines / ~1718 pages — tested (fetch + parse verified live on a 3-page sample; records carry wine_type/alcohol/bottle_size/country)
 - [x] [Bottleshop / more-than-wine](https://www.more-than-wine.com/) — PrestaShop — `scraping/more-than-wine/` — recon ✅ `notes/more-than-wine.md` — ~577 wines — tested (fetch + parse verified live on a 2-page sample; category is `/fr/3-vins`, JSON-LD path, vintage from URL slug). Note: JSON-LD `brand` is the shop, not the producer.
 - [x] [Arvi](https://arvi.ch/en/) — nopCommerce (.NET) — `scraping/arvi/` — large fine-wine catalogue (pager reports ~2070 pages × 13) — tested (fetch + parse verified live on a 3-page sample; category `/en/Wines`, `.item-box` card parsing, producer/vintage/bottle from card + URL slug)
-- 🔨 [Smith & Smith](https://www.smithandsmith.ch/de) — ASP.NET/IIS (likely nopCommerce) — `scraping/smith-and-smith/fetch.py` only — recon ✅ `notes/smith-and-smith.md` — **no parse.py** (egress proxy blocked; platform unconfirmed)
+- [x] [Smith & Smith](https://www.smithandsmith.ch/de) — custom React/ASP.NET (IIS), *not* nopCommerce — `scraping/smith-and-smith/` — ~2984 products — tested (fetch + parse verified live on a 3-page sample; listing `/de/shop?page=N`, `card artikel-box` parsing gives producer/region/country/vintage/bottle/price)
 - 📋 [Bindella Weinshop](https://www.bindella.ch/weinshop/) — BigCommerce — recon ✅ `notes/bindella.md` — **no code** (egress proxy blocked; platform unconfirmed)
 - 📋 [Landolt Weine](https://www.landolt-weine.ch/) — Shopware 6 — recon ✅ `notes/landolt.md` — **no code** (egress proxy blocked; platform unconfirmed)
 - ☐ [Mövenpick Wein](https://www.moevenpick-wein.com/de/) — Magento — Zürich-Enge + Wein-Bar, 3k+ wines
