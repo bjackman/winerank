@@ -8,9 +8,9 @@ engineering by it.
 ## Transcript fetcher
 
 WARNING: Developing this got my residential IP banned from the YouTube API,
-maybe permanently I don't know. Using YouTube via its own clients still works
-fine. When I switched to my mobile network it worked for a while but then still
-got banned again even with a rate limit applied.
+so far I always get unbanned after a few days. I am exponentially bumping up the
+gap between requests, presumably at some point this will reach a rate where it
+no longer triggers the IP-ban.
 
 ```sh
 nix run .#get-transcripts -- --num-vids 100
