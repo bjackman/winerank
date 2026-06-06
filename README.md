@@ -84,23 +84,21 @@ are meant to be committed.
 
 Needs a running `llama-server` (see above).
 
+### Inference speed
+
+I get like 10-14 t/s output token rate on my FW13 so it was crucial to avoid
+outputting any unnecessary tokens. I get about 250 t/s for input tokens which
+is dominated by actually passing in the transcript. The instruction prompt is
+pretty small. So probably we can get some speedups by:
+
+1. Fiddling with the output schema (e.g. maybe we can avoid needing to output
+   the whole wine name)
+
+2. Compressing the transcript e.g. by stripping filler words.
+
+But these won't be massive speedups.
+
 ### Next steps
-
-**Token efficiency — done (mostly).** The single-pass output schema was trimmed
-to just `name` + `score` (the only fields the eval grades; producer/vintage/
-region/notes_summary/matching_snippet are now `omitempty` and only the multi-pass
-strategy fills them). The eval report now also carries per-video timing + token
-counts (`stats`) and a top-level `performance` block. Measured on the 4-video GT
-set: **10m04s → 3m11s (3.16x), completion tokens 5777 → 1130 (-80%)**, recall
-unchanged. See `evals/2026-06-04T20:59:30Z.json` (before) vs `...T21:26:00Z.json`
-(after).
-
-The bottleneck has now **flipped from decode to prefill**: decode runs ~12 t/s
-but prefill ~200-290 t/s, so once the output got small, the ~25k prompt tokens/run
-dominate wall-clock. Next speed lever is **prompt size** (trim the transcript /
-system prompt), but the ceiling is lower since prefill is ~20x faster per token.
-Note `completion_tokens_per_sec` in the report is now misleading — it divides by
-total (prefill-dominated) duration, so it no longer means "decode speed".
 
 **Accuracy kinks (recall 26/27, score-match 25/26).** Investigated both:
 
@@ -131,7 +129,6 @@ Concrete TODOs:
   unjudged) rather than shown as "matched wine, wrong vintage" — a
   precision / "extracted-but-unmatched" view would make this legible at a glance
   (and would have flagged the Ruffino GT bug immediately).
-- Prompt-token reduction (see bottleneck note above) for further speedup.
 
 ## Merchant inventory scraping
 
