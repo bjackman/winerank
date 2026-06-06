@@ -95,7 +95,7 @@ def main():
 
     print(f"Found {len(video_ids)} video(s). Processing...", file=sys.stderr)
 
-    ytt_api = RateLimitedTranscriptApi(delay=5.0)
+    ytt_api = RateLimitedTranscriptApi(delay=10.0)
 
     for video_id in video_ids:
         out_path = os.path.join("transcripts", f"{video_id}.json")
