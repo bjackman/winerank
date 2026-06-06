@@ -2,19 +2,25 @@
 
 Recon for a `bindella/` scraper analogous to `realwines/`. Captured 2026-06-06.
 
-## TL;DR
-- Platform: **BigCommerce** (first-pass fingerprint; unverified — network blocked
-  from this environment; see Open questions). Data source: BigCommerce category
-  page HTML with embedded JSON-LD product schema, or the BigCommerce Stencil
-  storefront REST API at `/api/storefront/products`.
-- Best target: category HTML pages at `/weinshop/?page=N` (fallback) or the
-  Stencil API `GET /api/storefront/products?limit=50&page=N` (preferred if
-  it responds without a Storefront API token). Pagination: `?page=N`.
-- Total products: unknown (network not reachable from build environment).
-- Gotchas: network was blocked (`x-deny-reason: host_not_allowed`) during recon
-  — all BigCommerce patterns below are based on the known-platform shortcut from
-  `RECON.md`, not live verification. Run `--refresh` to populate cache on a
-  machine with real internet.
+## TL;DR (verified live 2026-06-06 — supersedes the blind guess below)
+- Platform: **BigCommerce confirmed** (`cdn11.bigcommerce.com` assets, Cornerstone)
+  — BUT it's a **headless / JS-rendered storefront**, not a standard Stencil one.
+  The catalogue is NOT scrapable from static HTML the way the other merchants are.
+- What does NOT work (all checked live):
+  - `/weinshop/` 301-redirects to `/weine`, which is a **marketing landing page** —
+    zero product cards, zero prices (`CHF` count 0), no `?page=` pagination.
+  - No JSON-LD anywhere (`application/ld+json` count 0 on every page tried).
+  - Stencil API `/api/storefront/products` → **404**. No `/api/`, `graphql`,
+    `storefront`, or Bearer-token markers in page source.
+  - `/sitemap.xml`, `/sitemap_index.xml`, `/robots.txt` → **all 404**.
+  - Catalogue is browsable only by `/wein/laender/<country>` and
+    `/wein/produzenten/<slug>`; producer pages list wines but carry no prices and
+    no buyable product-detail links in static HTML.
+- Conclusion: products + prices are loaded client-side via XHR. A working scraper
+  needs **either** browser automation (Playwright/headless Chromium) **or**
+  reverse-engineering the storefront's XHR/GraphQL endpoint (capture via devtools
+  Network tab — not discoverable from static HTML alone). This is out of scope for
+  the regex-on-HTML pattern used by the other scrapers. **No code written yet.**
 
 ## Platform / fingerprint
 - First-pass fingerprint: BigCommerce (from README table, 2026-06-04).
