@@ -17,13 +17,9 @@ Usage
     nix develop -c python scraping/arvi/fetch.py --refresh          # ignore cache, re-download
     nix develop -c python scraping/arvi/fetch.py --max-pages 3      # stop after 3 pages (dev)
 
-NOTE
-----
-The live site (arvi.ch) was unreachable during implementation (the egress
-gateway returned 403 host_not_allowed).  The URL patterns and HTML structure
-below follow the standard nopCommerce conventions but have NOT been verified
-against a live response.  Adjust WINE_CATEGORY_URL and the HTML parsing regex
-patterns in parse.py once the site is accessible.
+Verified live: category is /en/Wines, ?pagenumber=N pagination, 13 products per
+page. The catalogue is large (the pager's last-page link reports ~2070 pages),
+so use --max-pages when sampling.
 """
 
 import argparse
@@ -34,10 +30,10 @@ from pathlib import Path
 
 import requests
 
-# nopCommerce wine/shop category listing URL.
-# Typical patterns: /en/wine, /en/wines, /en/catalog, /en/shop, or a named
-# category like /en/vins, /en/weine.  Adjust if the actual path differs.
-WINE_CATEGORY_URL = "https://arvi.ch/en/wine"
+# nopCommerce "Wines" category listing, verified live. Uses ?pagenumber=N
+# pagination, 13 products per page. Product URLs are
+# /en/<producer>/<wine>/<vintage>/<bottle-size> (vintage may be "nv").
+WINE_CATEGORY_URL = "https://arvi.ch/en/Wines"
 
 CACHE_DIR = Path.cwd() / "scraping" / "arvi" / "cache"
 HEADERS = {
