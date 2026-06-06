@@ -115,34 +115,35 @@ Each scraper is a `fetch.py` (cache-first; one raw page file under `cache/`) +
 `parse.py` (cache → clean wine records), so every merchant runs the same way:
 
 ```sh
-nix develop ".?shallow=1" -c python scraping/<merchant>/fetch.py [opts]
-nix develop ".?shallow=1" -c python scraping/<merchant>/parse.py --from-cache --output scraping/<merchant>/wines.json
+nix develop -c python scraping/<merchant>/fetch.py [opts]
+nix develop -c python scraping/<merchant>/parse.py --from-cache --output scraping/<merchant>/wines.json
 ```
 
 Notes on the invocation:
 
-- **`".?shallow=1"` is required.** Without it `nix develop` fails to enter the
-  shell with `Failed to retrieve the parent of Git commit … object not found` —
-  Nix's libgit2 can't walk this repo's history. The shallow flag sidesteps the
-  walk. (Plain `git` reads the objects fine; only Nix's fetcher trips.)
 - **Use `python`, not `python3`** — there's no `python3` on PATH. The dev shell
   provides `python` (3.13) + `requests` transitively via the `get-transcripts`
   package inputs.
 - `fetch.py` is cache-first: it reuses `scraping/<merchant>/cache/page_*.json`
   and only hits the network for missing pages. Pass `--refresh` to re-download.
+- If `nix develop` fails to enter the shell with `Failed to retrieve the parent
+  of Git commit … object not found`, your checkout is a partial/blobless clone
+  that Nix's libgit2 can't walk. Either unshallow the clone
+  (`git fetch --unshallow` / `git repack -d`) or append `".?shallow=1"` to the
+  flake ref as a one-off (`nix develop ".?shallow=1" -c …`).
 
 Tested and confirmed working:
 
 ```sh
 # Vinazion (WooCommerce, ~305 wines)
-nix develop ".?shallow=1" -c python scraping/vinazion/fetch.py
-nix develop ".?shallow=1" -c python scraping/vinazion/parse.py --from-cache --output scraping/vinazion/wines.json
+nix develop -c python scraping/vinazion/fetch.py
+nix develop -c python scraping/vinazion/parse.py --from-cache --output scraping/vinazion/wines.json
 
 # Shopify shops (one parametrised scraper for all of them; --shop + --name)
-nix develop ".?shallow=1" -c python scraping/shopify/fetch.py --shop www.vergani.ch     --name vergani
-nix develop ".?shallow=1" -c python scraping/shopify/parse.py --name vergani --from-cache --output scraping/shopify/vergani.json
-nix develop ".?shallow=1" -c python scraping/shopify/fetch.py --shop advanvinum-wein.ch --name advanvinum
-nix develop ".?shallow=1" -c python scraping/shopify/parse.py --name advanvinum --from-cache --output scraping/shopify/advanvinum.json
+nix develop -c python scraping/shopify/fetch.py --shop www.vergani.ch     --name vergani
+nix develop -c python scraping/shopify/parse.py --name vergani --from-cache --output scraping/shopify/vergani.json
+nix develop -c python scraping/shopify/fetch.py --shop advanvinum-wein.ch --name advanvinum
+nix develop -c python scraping/shopify/parse.py --name advanvinum --from-cache --output scraping/shopify/advanvinum.json
 ```
 
 `notes/RECON.md` is the recon playbook + per-platform shortcuts for adding the
