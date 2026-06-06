@@ -48,10 +48,11 @@ import requests
 # Configuration — adjust WINE_CATEGORY_URL after live verification
 # ---------------------------------------------------------------------------
 
-# PrestaShop wine category URL.  Typical slugs: /wein, /vin, /wine, /vins,
-# /vins-naturels.  If the site uses the legacy controller URL it will look like
-# ?controller=category&id_category=N — adjust accordingly.
-WINE_CATEGORY_URL = "https://www.more-than-wine.com/wein"
+# PrestaShop "Vins" category (id_category=3), verified live. The site is
+# French-default and uses numeric-id slugs (/fr/<id>-<slug>); ?p=N paginates and
+# ?n=N overrides page size. Other top categories: 30-tous-les-produits (all),
+# 17-vins-blancs, 19-vins-rouges, 18-vins-oranges, 20-vins-roses, etc.
+WINE_CATEGORY_URL = "https://www.more-than-wine.com/fr/3-vins"
 
 # PrestaShop supports a ?n=N products-per-page override.  48 keeps page count low;
 # if the site ignores it you'll just get the default (usually 12–24).
