@@ -168,6 +168,10 @@ nix develop -c python scraping/moevenpick/parse.py --from-cache --output scrapin
 # Baur au Lac Vins (Java app, sitemap-driven, ~2342 wines — use --max-products to sample)
 nix develop -c python scraping/bauraulac/fetch.py [--max-products N]
 nix develop -c python scraping/bauraulac/parse.py --from-cache --output scraping/bauraulac/wines.json
+
+# Zweifel 1898 (Java app, sitemap-driven, ~781 wines — use --max-products to sample)
+nix develop -c python scraping/zweifel/fetch.py [--max-products N]
+nix develop -c python scraping/zweifel/parse.py --from-cache --output scraping/zweifel/wines.json
 ```
 
 `notes/RECON.md` is the recon playbook + per-platform shortcuts for adding the
@@ -194,7 +198,7 @@ Legend: 🔧 code written, untested · 🔨 partial code (fetch only, no parse) 
 - 📋 [Landolt Weine](https://www.landolt-weine.ch/) — Shopware 6 — recon ✅ `notes/landolt.md` — **no code** (egress proxy blocked; platform unconfirmed)
 - [x] [Mövenpick Wein](https://www.moevenpick-wein.com/de/) — Magento — `scraping/moevenpick/` — recon ✅ `notes/moevenpick.md` — ~4300 wines (sitemap-driven; JSON-LD PDPs) — tested (fetch + parse verified live on a 20-product sample; producer not exposed in JSON-LD)
 - [x] [Baur au Lac Vins](https://www.bauraulacvins.ch/) — Java app (JSESSIONID) — `scraping/bauraulac/` — recon ✅ `notes/bauraulac.md` — ~2342 wines (sitemap-driven; `data-shop-*` attrs + URL facets) — tested (fetch + parse verified live on a 20-product sample; producer not exposed)
-- ☐ [Zweifel 1898](https://www.zweifel1898.ch/) — Java app (JSESSIONID) — Zürich winery (Höngg)
+- [x] [Zweifel 1898](https://www.zweifel1898.ch/) — Java app (JSESSIONID), same platform as Baur au Lac — `scraping/zweifel/` — recon ✅ `notes/zweifel.md` — ~781 wines (sitemap-driven; microdata PDPs + URL facets) — tested (fetch + parse verified live on a 20-product sample)
 - ☐ [Gerstl Weinselektionen](https://www.gerstl.ch/) — custom Node/Express headless — since 1981
 - ☐ [REB Wein](https://www.rebwein.ch/) — custom Laravel — central Zürich
 - ☐ [Le Passeur de Vin](https://www.passeurdevin.ch/) — unknown platform — Pelikanstrasse, Zürich
