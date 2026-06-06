@@ -18,7 +18,8 @@ Data extraction strategy
    title link and ``.price`` span.
 
 Post-processing (both paths):
-- ``vintage``: regex for a four-digit year (1900–2099) in the product name.
+- ``vintage``: regex for a four-digit year (1900–2099) in the product name,
+  falling back to the URL slug (this shop's JSON-LD name omits the year).
 - ``producer``: regex heuristic (first token(s) before the vintage / comma /
   dash).  PrestaShop products rarely expose producer as a structured field on
   listing pages; a PDP fetch would give cleaner data.
@@ -106,10 +107,16 @@ def parse_price(price_str: str | None) -> int | None:
         return None
 
 
-def parse_vintage(name: str) -> int | None:
-    """Extract a four-digit vintage year from a product name."""
-    m = re.search(r"\b(19|20)\d{2}\b", name)
-    return int(m.group(0)) if m else None
+def parse_vintage(name: str, url: str | None = None) -> int | None:
+    """Extract a four-digit vintage year from a product name, falling back to
+    the URL slug. This shop's JSON-LD ``name`` is just the cuvée (e.g.
+    "Pregadeu") with no year, but the slug carries it
+    (…-pregadeu-2024-eff-blanc-75cl-…)."""
+    for text in (name, url or ""):
+        m = re.search(r"\b(19|20)\d{2}\b", text)
+        if m:
+            return int(m.group(0))
+    return None
 
 
 def parse_producer(name: str) -> str | None:
@@ -211,7 +218,7 @@ def jsonld_to_record(item: dict) -> dict:
     else:
         producer_raw = str(brand) if brand else None
 
-    vintage = parse_vintage(name)
+    vintage = parse_vintage(name, url)
     producer = producer_raw or parse_producer(name)
 
     return {
@@ -289,7 +296,7 @@ def html_cards_to_records(page_html: str) -> list[dict]:
         # Stock: absence of out-of-stock markers → assume in stock
         in_stock = not bool(_STOCK_RE.search(card_html))
 
-        vintage = parse_vintage(name)
+        vintage = parse_vintage(name, url)
         producer = parse_producer(name)
 
         records.append({
