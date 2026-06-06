@@ -160,6 +160,10 @@ nix develop -c python scraping/arvi/parse.py --from-cache --output scraping/arvi
 # Smith & Smith (custom React/ASP.NET, ~2984 products — use --max-pages to sample)
 nix develop -c python scraping/smith-and-smith/fetch.py [--max-pages N]
 nix develop -c python scraping/smith-and-smith/parse.py --from-cache --output scraping/smith-and-smith/wines.json
+
+# Mövenpick (Magento, sitemap-driven, ~4300 wines — use --max-products to sample)
+nix develop -c python scraping/moevenpick/fetch.py [--max-products N]
+nix develop -c python scraping/moevenpick/parse.py --from-cache --output scraping/moevenpick/wines.json
 ```
 
 `notes/RECON.md` is the recon playbook + per-platform shortcuts for adding the
@@ -184,7 +188,7 @@ Legend: 🔧 code written, untested · 🔨 partial code (fetch only, no parse) 
 - [x] [Smith & Smith](https://www.smithandsmith.ch/de) — custom React/ASP.NET (IIS), *not* nopCommerce — `scraping/smith-and-smith/` — ~2984 products — tested (fetch + parse verified live on a 3-page sample; listing `/de/shop?page=N`, `card artikel-box` parsing gives producer/region/country/vintage/bottle/price)
 - 📋 [Bindella Weinshop](https://www.bindella.ch/weinshop/) — BigCommerce — recon ✅ `notes/bindella.md` — **no code** (egress proxy blocked; platform unconfirmed)
 - 📋 [Landolt Weine](https://www.landolt-weine.ch/) — Shopware 6 — recon ✅ `notes/landolt.md` — **no code** (egress proxy blocked; platform unconfirmed)
-- ☐ [Mövenpick Wein](https://www.moevenpick-wein.com/de/) — Magento — Zürich-Enge + Wein-Bar, 3k+ wines
+- [x] [Mövenpick Wein](https://www.moevenpick-wein.com/de/) — Magento — `scraping/moevenpick/` — recon ✅ `notes/moevenpick.md` — ~4300 wines (sitemap-driven; JSON-LD PDPs) — tested (fetch + parse verified live on a 20-product sample; producer not exposed in JSON-LD)
 - ☐ [Baur au Lac Vins](https://www.bauraulacvins.ch/) — Java app (JSESSIONID) — 3k+ articles
 - ☐ [Zweifel 1898](https://www.zweifel1898.ch/) — Java app (JSESSIONID) — Zürich winery (Höngg)
 - ☐ [Gerstl Weinselektionen](https://www.gerstl.ch/) — custom Node/Express headless — since 1981
