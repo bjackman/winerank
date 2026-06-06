@@ -195,13 +195,16 @@ rest; per-merchant recon lives in `notes/<merchant>.md`.
 
 ### Merchants in and around Zürich to scrape
 
-Wine merchants with online catalogues, roughly in priority order. Each needs its
-own fetcher/parser. **Read `notes/RECON.md` first** — it has the recon playbook,
-per-platform shortcuts, house conventions, and the notes template. Per-merchant
-recon lands in `notes/<merchant>.md`. Platforms below are from a first-pass
-fingerprint (verify before trusting).
+Wine merchants with online catalogues, roughly in priority order. Each has its
+own fetcher/parser unless noted. **Read `notes/RECON.md` first** — it has the
+recon playbook, per-platform shortcuts, house conventions, and the notes
+template. Per-merchant recon lands in `notes/<merchant>.md`.
 
-Legend: 🔧 code written, untested · 🔨 partial code (fetch only, no parse) · 📋 recon notes only · ☐ not started
+All listed merchants are implemented and tested live except Bindella (blocked —
+headless/JS-rendered storefront). Platforms are verified unless a line says
+otherwise.
+
+Legend: [x] tested live · ⛔ blocked (needs browser automation) · 🔧 code written, untested · 🔨 partial code (fetch only, no parse) · 📋 recon notes only · ☐ not started
 
 - [x] [Vinazion](https://www.vinazion.ch/) — WooCommerce — `scraping/vinazion/` — ~305 wines
 - [x] [Vergani](https://www.vergani.ch/) — Shopify — `scraping/shopify/` — ~740 wines / ~1000 variants
@@ -210,7 +213,7 @@ Legend: 🔧 code written, untested · 🔨 partial code (fetch only, no parse) 
 - [x] [Bottleshop / more-than-wine](https://www.more-than-wine.com/) — PrestaShop — `scraping/more-than-wine/` — recon ✅ `notes/more-than-wine.md` — ~577 wines — tested (fetch + parse verified live on a 2-page sample; category is `/fr/3-vins`, JSON-LD path, vintage from URL slug). Note: JSON-LD `brand` is the shop, not the producer.
 - [x] [Arvi](https://arvi.ch/en/) — nopCommerce (.NET) — `scraping/arvi/` — large fine-wine catalogue (pager reports ~2070 pages × 13) — tested (fetch + parse verified live on a 3-page sample; category `/en/Wines`, `.item-box` card parsing, producer/vintage/bottle from card + URL slug)
 - [x] [Smith & Smith](https://www.smithandsmith.ch/de) — custom React/ASP.NET (IIS), *not* nopCommerce — `scraping/smith-and-smith/` — ~2984 products — tested (fetch + parse verified live on a 3-page sample; listing `/de/shop?page=N`, `card artikel-box` parsing gives producer/region/country/vintage/bottle/price)
-- 📋 [Bindella Weinshop](https://www.bindella.ch/weinshop/) — BigCommerce — recon ✅ `notes/bindella.md` — **no code** (egress proxy blocked; platform unconfirmed)
+- ⛔ [Bindella Weinshop](https://www.bindella.ch/weinshop/) — BigCommerce (verified) — recon ✅ `notes/bindella.md` — **blocked: headless/JS-rendered storefront** (no products/prices in static HTML, no JSON-LD, Stencil API 404s, no sitemap). Needs browser automation or XHR/API reverse-engineering — out of scope for the static-HTML scraper pattern.
 - [x] [Landolt Weine](https://www.landolt-weine.ch/) — Shopware 6 (storefront on landolt-weine.nextag.ch) — `scraping/landolt/` — recon ✅ `notes/landolt.md` — ~693 products (sitemap-driven; microdata + properties table) — tested (fetch + parse verified live on a 25-product sample; vintage sparse on own-label range)
 - [x] [Mövenpick Wein](https://www.moevenpick-wein.com/de/) — Magento — `scraping/moevenpick/` — recon ✅ `notes/moevenpick.md` — ~4300 wines (sitemap-driven; JSON-LD PDPs) — tested (fetch + parse verified live on a 20-product sample; producer not exposed in JSON-LD)
 - [x] [Baur au Lac Vins](https://www.bauraulacvins.ch/) — Java app (JSESSIONID) — `scraping/bauraulac/` — recon ✅ `notes/bauraulac.md` — ~2342 wines (sitemap-driven; `data-shop-*` attrs + URL facets) — tested (fetch + parse verified live on a 20-product sample; producer not exposed)
