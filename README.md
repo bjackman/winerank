@@ -140,7 +140,7 @@ per-platform shortcuts, house conventions, and the notes template. Per-merchant
 recon lands in `notes/<merchant>.md`. Platforms below are from a first-pass
 fingerprint (verify before trusting). Checkbox = scraper built.
 
-- [ ] [Flaschenpost](https://www.flaschenpost.ch/) — Next.js/RSC custom — 20k+ wines — recon ✅ `notes/flaschenpost.md`
+- [x] [Flaschenpost](https://www.flaschenpost.ch/) — Next.js/RSC custom — 20k+ wines — recon ✅ `notes/flaschenpost.md` — built `scraping/flaschenpost/`
 - [x] [Vinazion](https://www.vinazion.ch/) — **WooCommerce** — built (`scraping/vinazion/`, 305 wines)
 - [x] [Vergani](https://www.vergani.ch/) — **Shopify** — built (`scraping/shopify/`, 740 wines / 1000 variants)
 - [x] [AdvanVinum](https://advanvinum-wein.ch/) — **Shopify** — built (`scraping/shopify/`, 215 wines / 219 variants)
