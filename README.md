@@ -145,7 +145,7 @@ fingerprint (verify before trusting). Checkbox = scraper built.
 - [x] [Vergani](https://www.vergani.ch/) — **Shopify** — built (`scraping/shopify/`, 740 wines / 1000 variants)
 - [x] [AdvanVinum](https://advanvinum-wein.ch/) — **Shopify** — built (`scraping/shopify/`, 215 wines / 219 variants)
 - [ ] [Bindella Weinshop](https://www.bindella.ch/weinshop/) — BigCommerce — Italian focus, Zürich
-- [ ] [Bottleshop / more-than-wine](https://www.more-than-wine.com/) — PrestaShop — natural wine
+- [x] [Bottleshop / more-than-wine](https://www.more-than-wine.com/) — PrestaShop — natural wine — recon ✅ `notes/more-than-wine.md` — built `scraping/more-than-wine/`
 - [ ] [Arvi](https://arvi.ch/en/) — nopCommerce (.NET) — fine & rare
 - [ ] [Smith & Smith](https://www.smithandsmith.ch/de) — ASP.NET/IIS (likely nopCommerce) — Zürich + Bern
 - [ ] [Mövenpick Wein](https://www.moevenpick-wein.com/de/) — Magento — Zürich-Enge + Wein-Bar, 3k+ wines
