@@ -184,6 +184,10 @@ nix develop -c python scraping/rebwein/parse.py --from-cache --output scraping/r
 # Landolt Weine (Shopware 6, sitemap-driven, ~693 products — use --max-products to sample)
 nix develop -c python scraping/landolt/fetch.py [--max-products N]
 nix develop -c python scraping/landolt/parse.py --from-cache --output scraping/landolt/wines.json
+
+# Le Passeur de Vin (WooCommerce, ~1331 products)
+nix develop -c python scraping/passeur/fetch.py
+nix develop -c python scraping/passeur/parse.py --from-cache --output scraping/passeur/wines.json
 ```
 
 `notes/RECON.md` is the recon playbook + per-platform shortcuts for adding the
@@ -213,4 +217,4 @@ Legend: 🔧 code written, untested · 🔨 partial code (fetch only, no parse) 
 - [x] [Zweifel 1898](https://www.zweifel1898.ch/) — Java app (JSESSIONID), same platform as Baur au Lac — `scraping/zweifel/` — recon ✅ `notes/zweifel.md` — ~781 wines (sitemap-driven; microdata PDPs + URL facets) — tested (fetch + parse verified live on a 20-product sample)
 - [x] [Gerstl Weinselektionen](https://www.gerstl.ch/) — Angular SPA (ng-state transfer blob), Google-hosted — `scraping/gerstl/` — recon ✅ `notes/gerstl.md` — ~7546 wines (sitemap-driven; richest data incl. appellation/grapes) — tested (fetch + parse verified live on a 20-product sample)
 - [x] [REB Wein](https://www.rebwein.ch/) — Laravel (server-rendered) — `scraping/rebwein/` — recon ✅ `notes/rebwein.md` — ~392 wines (listing-card scraping; no PDP fetches) — tested (fetch + parse verified live on a 3-page sample)
-- ☐ [Le Passeur de Vin](https://www.passeurdevin.ch/) — unknown platform — Pelikanstrasse, Zürich
+- [x] [Le Passeur de Vin](https://www.lepasseurdevin.ch/) — WooCommerce (README's passeurdevin.ch is dead; real site is lepasseurdevin.ch) — `scraping/passeur/` — recon ✅ `notes/passeur.md` — ~1331 products (Store API; wine_type from categories) — tested (fetch + parse verified live on the full catalogue; vintage not exposed)
