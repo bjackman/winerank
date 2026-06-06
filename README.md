@@ -176,6 +176,10 @@ nix develop -c python scraping/zweifel/parse.py --from-cache --output scraping/z
 # Gerstl (Angular ng-state, sitemap-driven, ~7546 wines — use --max-products to sample)
 nix develop -c python scraping/gerstl/fetch.py [--max-products N]
 nix develop -c python scraping/gerstl/parse.py --from-cache --output scraping/gerstl/wines.json
+
+# REB Wein (Laravel, listing-card scraping, ~392 wines — use --max-pages to sample)
+nix develop -c python scraping/rebwein/fetch.py [--max-pages N]
+nix develop -c python scraping/rebwein/parse.py --from-cache --output scraping/rebwein/wines.json
 ```
 
 `notes/RECON.md` is the recon playbook + per-platform shortcuts for adding the
@@ -204,5 +208,5 @@ Legend: 🔧 code written, untested · 🔨 partial code (fetch only, no parse) 
 - [x] [Baur au Lac Vins](https://www.bauraulacvins.ch/) — Java app (JSESSIONID) — `scraping/bauraulac/` — recon ✅ `notes/bauraulac.md` — ~2342 wines (sitemap-driven; `data-shop-*` attrs + URL facets) — tested (fetch + parse verified live on a 20-product sample; producer not exposed)
 - [x] [Zweifel 1898](https://www.zweifel1898.ch/) — Java app (JSESSIONID), same platform as Baur au Lac — `scraping/zweifel/` — recon ✅ `notes/zweifel.md` — ~781 wines (sitemap-driven; microdata PDPs + URL facets) — tested (fetch + parse verified live on a 20-product sample)
 - [x] [Gerstl Weinselektionen](https://www.gerstl.ch/) — Angular SPA (ng-state transfer blob), Google-hosted — `scraping/gerstl/` — recon ✅ `notes/gerstl.md` — ~7546 wines (sitemap-driven; richest data incl. appellation/grapes) — tested (fetch + parse verified live on a 20-product sample)
-- ☐ [REB Wein](https://www.rebwein.ch/) — custom Laravel — central Zürich
+- [x] [REB Wein](https://www.rebwein.ch/) — Laravel (server-rendered) — `scraping/rebwein/` — recon ✅ `notes/rebwein.md` — ~392 wines (listing-card scraping; no PDP fetches) — tested (fetch + parse verified live on a 3-page sample)
 - ☐ [Le Passeur de Vin](https://www.passeurdevin.ch/) — unknown platform — Pelikanstrasse, Zürich
