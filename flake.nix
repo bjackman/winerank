@@ -90,10 +90,6 @@
 
         devShells.default = pkgs.mkShell {
           inputsFrom = [ self.packages.${system}.get-transcripts ];
-          # llama-vulkan is also a viable alternative that doesn't require
-          # building from source. With that version I get perf in the region of
-          # 75 tokens/s. I think CUDA will be faster.
-          packages = with pkgs; [ (llama-cpp.override { cudaSupport = true; }) ];
         };
       }
     );
