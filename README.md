@@ -112,19 +112,37 @@ All merchant scrapers live under `scraping/`, one directory per merchant (or per
 platform), following the same cache-first fetch + parse pattern.
 
 Each scraper is a `fetch.py` (cache-first; one raw page file under `cache/`) +
-`parse.py` (cache → clean wine records). Run them with `nix develop -c python`
-(there's no `python3` on PATH). Tested and confirmed working:
+`parse.py` (cache → clean wine records), so every merchant runs the same way:
+
+```sh
+nix develop ".?shallow=1" -c python scraping/<merchant>/fetch.py [opts]
+nix develop ".?shallow=1" -c python scraping/<merchant>/parse.py --from-cache --output scraping/<merchant>/wines.json
+```
+
+Notes on the invocation:
+
+- **`".?shallow=1"` is required.** Without it `nix develop` fails to enter the
+  shell with `Failed to retrieve the parent of Git commit … object not found` —
+  Nix's libgit2 can't walk this repo's history. The shallow flag sidesteps the
+  walk. (Plain `git` reads the objects fine; only Nix's fetcher trips.)
+- **Use `python`, not `python3`** — there's no `python3` on PATH. The dev shell
+  provides `python` (3.13) + `requests` transitively via the `get-transcripts`
+  package inputs.
+- `fetch.py` is cache-first: it reuses `scraping/<merchant>/cache/page_*.json`
+  and only hits the network for missing pages. Pass `--refresh` to re-download.
+
+Tested and confirmed working:
 
 ```sh
 # Vinazion (WooCommerce, ~305 wines)
-nix develop -c python scraping/vinazion/fetch.py
-nix develop -c python scraping/vinazion/parse.py --from-cache --output scraping/vinazion/wines.json
+nix develop ".?shallow=1" -c python scraping/vinazion/fetch.py
+nix develop ".?shallow=1" -c python scraping/vinazion/parse.py --from-cache --output scraping/vinazion/wines.json
 
-# Shopify shops (one parametrised scraper for all of them)
-nix develop -c python scraping/shopify/fetch.py --shop www.vergani.ch     --name vergani
-nix develop -c python scraping/shopify/parse.py --name vergani --from-cache --output scraping/shopify/vergani.json
-nix develop -c python scraping/shopify/fetch.py --shop advanvinum-wein.ch --name advanvinum
-nix develop -c python scraping/shopify/parse.py --name advanvinum --from-cache --output scraping/shopify/advanvinum.json
+# Shopify shops (one parametrised scraper for all of them; --shop + --name)
+nix develop ".?shallow=1" -c python scraping/shopify/fetch.py --shop www.vergani.ch     --name vergani
+nix develop ".?shallow=1" -c python scraping/shopify/parse.py --name vergani --from-cache --output scraping/shopify/vergani.json
+nix develop ".?shallow=1" -c python scraping/shopify/fetch.py --shop advanvinum-wein.ch --name advanvinum
+nix develop ".?shallow=1" -c python scraping/shopify/parse.py --name advanvinum --from-cache --output scraping/shopify/advanvinum.json
 ```
 
 `notes/RECON.md` is the recon playbook + per-platform shortcuts for adding the
