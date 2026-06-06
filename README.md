@@ -108,14 +108,12 @@ But these won't be massive speedups.
 
 ## Merchant inventory scraping
 
-We currently scrape [realwines.ch](https://realwines.ch) (a WooCommerce store —
-see `scraping/realwines/`). All merchant scrapers live under `scraping/`, one
-directory per merchant (or per platform), following the same cache-first fetch +
-parse pattern.
+All merchant scrapers live under `scraping/`, one directory per merchant (or per
+platform), following the same cache-first fetch + parse pattern.
 
 Each scraper is a `fetch.py` (cache-first; one raw page file under `cache/`) +
 `parse.py` (cache → clean wine records). Run them with `nix develop -c python`
-(there's no `python3` on PATH). Built so far:
+(there's no `python3` on PATH). Tested and confirmed working:
 
 ```sh
 # Vinazion (WooCommerce, ~305 wines)
@@ -132,26 +130,29 @@ nix develop -c python scraping/shopify/parse.py --name advanvinum --from-cache -
 `notes/RECON.md` is the recon playbook + per-platform shortcuts for adding the
 rest; per-merchant recon lives in `notes/<merchant>.md`.
 
-### TODO: merchants in and around Zürich to scrape
+### Merchants in and around Zürich to scrape
 
 Wine merchants with online catalogues, roughly in priority order. Each needs its
 own fetcher/parser. **Read `notes/RECON.md` first** — it has the recon playbook,
 per-platform shortcuts, house conventions, and the notes template. Per-merchant
 recon lands in `notes/<merchant>.md`. Platforms below are from a first-pass
-fingerprint (verify before trusting). Checkbox = scraper built.
+fingerprint (verify before trusting).
 
-- [x] [Flaschenpost](https://www.flaschenpost.ch/) — Next.js/RSC custom — 20k+ wines — recon ✅ `notes/flaschenpost.md` — built `scraping/flaschenpost/`
-- [x] [Vinazion](https://www.vinazion.ch/) — **WooCommerce** — built (`scraping/vinazion/`, 305 wines)
-- [x] [Vergani](https://www.vergani.ch/) — **Shopify** — built (`scraping/shopify/`, 740 wines / 1000 variants)
-- [x] [AdvanVinum](https://advanvinum-wein.ch/) — **Shopify** — built (`scraping/shopify/`, 215 wines / 219 variants)
-- [ ] [Bindella Weinshop](https://www.bindella.ch/weinshop/) — BigCommerce — Italian focus, Zürich
-- [x] [Bottleshop / more-than-wine](https://www.more-than-wine.com/) — PrestaShop — natural wine — recon ✅ `notes/more-than-wine.md` — built `scraping/more-than-wine/`
-- [ ] [Arvi](https://arvi.ch/en/) — nopCommerce (.NET) — fine & rare
-- [ ] [Smith & Smith](https://www.smithandsmith.ch/de) — ASP.NET/IIS (likely nopCommerce) — Zürich + Bern
-- [ ] [Mövenpick Wein](https://www.moevenpick-wein.com/de/) — Magento — Zürich-Enge + Wein-Bar, 3k+ wines
-- [ ] [Landolt Weine](https://www.landolt-weine.ch/) — Shopware likely — Zürich grower/merchant
-- [ ] [Baur au Lac Vins](https://www.bauraulacvins.ch/) — Java app (JSESSIONID) — 3k+ articles
-- [ ] [Zweifel 1898](https://www.zweifel1898.ch/) — Java app (JSESSIONID) — Zürich winery (Höngg)
-- [ ] [Gerstl Weinselektionen](https://www.gerstl.ch/) — custom Node/Express headless — since 1981
-- [ ] [REB Wein](https://www.rebwein.ch/) — custom Laravel — central Zürich
-- [ ] [Le Passeur de Vin](https://www.passeurdevin.ch/) — unknown platform — Pelikanstrasse, Zürich
+Legend: ✅ tested against live site · 🔧 code written, untested · 🔨 partial
+code (fetch only, no parse) · 📋 recon notes only · ☐ not started
+
+- ✅ [Vinazion](https://www.vinazion.ch/) — WooCommerce — `scraping/vinazion/` — 305 wines confirmed
+- ✅ [Vergani](https://www.vergani.ch/) — Shopify — `scraping/shopify/` — 740 wines / 1000 variants confirmed
+- ✅ [AdvanVinum](https://advanvinum-wein.ch/) — Shopify — `scraping/shopify/` — 215 wines / 219 variants confirmed
+- 🔧 [Flaschenpost](https://www.flaschenpost.ch/) — Next.js/RSC — `scraping/flaschenpost/` — recon ✅ `notes/flaschenpost.md` — 20k+ wines — **untested** (recon was done with real curl output; code not run against live site)
+- 🔧 [Bottleshop / more-than-wine](https://www.more-than-wine.com/) — PrestaShop — `scraping/more-than-wine/` — recon ✅ `notes/more-than-wine.md` — **untested** (egress proxy blocked all recon requests; platform and category URL unconfirmed)
+- 🔨 [Arvi](https://arvi.ch/en/) — nopCommerce (.NET) — `scraping/arvi/fetch.py` only — **no parse.py, no recon notes** (egress proxy blocked; code based on nopCommerce conventions only)
+- 🔨 [Smith & Smith](https://www.smithandsmith.ch/de) — ASP.NET/IIS (likely nopCommerce) — `scraping/smith-and-smith/fetch.py` only — recon ✅ `notes/smith-and-smith.md` — **no parse.py** (egress proxy blocked; platform unconfirmed)
+- 📋 [Bindella Weinshop](https://www.bindella.ch/weinshop/) — BigCommerce — recon ✅ `notes/bindella.md` — **no code** (egress proxy blocked; platform unconfirmed)
+- 📋 [Landolt Weine](https://www.landolt-weine.ch/) — Shopware 6 — recon ✅ `notes/landolt.md` — **no code** (egress proxy blocked; platform unconfirmed)
+- ☐ [Mövenpick Wein](https://www.moevenpick-wein.com/de/) — Magento — Zürich-Enge + Wein-Bar, 3k+ wines
+- ☐ [Baur au Lac Vins](https://www.bauraulacvins.ch/) — Java app (JSESSIONID) — 3k+ articles
+- ☐ [Zweifel 1898](https://www.zweifel1898.ch/) — Java app (JSESSIONID) — Zürich winery (Höngg)
+- ☐ [Gerstl Weinselektionen](https://www.gerstl.ch/) — custom Node/Express headless — since 1981
+- ☐ [REB Wein](https://www.rebwein.ch/) — custom Laravel — central Zürich
+- ☐ [Le Passeur de Vin](https://www.passeurdevin.ch/) — unknown platform — Pelikanstrasse, Zürich
