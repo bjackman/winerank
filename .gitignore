@@ -6,10 +6,7 @@ result
 scores.json
 
 # Merchant scrapers — cache and output are reproducible, don't commit them
-scraping/realwines/cache/
-scraping/realwines/wines.json
-scraping/vinazion/cache/
-scraping/vinazion/wines.json
-scraping/shopify/cache/
+scraping/*/cache/
+scraping/*/wines.json
 scraping/shopify/*.json
 .claude/
