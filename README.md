@@ -56,6 +56,10 @@ that is to set up a "menu" of supported models/inference configs (this is
 supported by `llama-server`). For this project, no need to bother with that,
 just hardcode the server args.
 
+Note Qwen3 is quite old, superseded by both 3.5 and 3.6 by now. I tried
+switching to `unsloth/Qwen3.6-35B-A3B-GGUF:Q4_K_M` but it was only able to get
+accuracte scores in reasoning mode, which is really slow.
+
 ### Eval
 
 Grade the extractor against `scores_groundtruth.json`:
