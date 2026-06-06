@@ -150,9 +150,10 @@ const singlePassSchema = `{
         "type": "object",
         "properties": {
           "name": { "type": "string" },
-          "score": { "type": ["integer", "null"] }
+          "score": { "type": ["integer", "null"] },
+          "matching_snippet": { "type": "string" }
         },
-        "required": ["name", "score"],
+        "required": ["name", "score", "matching_snippet"],
         "additionalProperties": false
       }
     }

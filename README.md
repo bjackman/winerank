@@ -91,44 +91,16 @@ outputting any unnecessary tokens. I get about 250 t/s for input tokens which
 is dominated by actually passing in the transcript. The instruction prompt is
 pretty small. So probably we can get some speedups by:
 
+0. Not forcing the model to output quotes from its input. However, with
+  `unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF:Q4_K_M`, this was necessary to get
+  full accuracy on the eval data.
+
 1. Fiddling with the output schema (e.g. maybe we can avoid needing to output
    the whole wine name)
 
 2. Compressing the transcript e.g. by stripping filler words.
 
 But these won't be massive speedups.
-
-### Next steps
-
-**Accuracy kinks (recall 26/27, score-match 25/26).** Investigated both:
-
-- *Ruffino (recall miss)* — was a **GT bug**, now fixed. GT said `2021 Ruffino
-  Riserva Ducale` but the video description (and the model) say `2019`; the bad
-  `2021` had leaked from the *previous* wine's wine-searcher URL fragment. Same
-  score (90), so it was getting double-penalized (unmatched GT + unjudged) — the
-  observability note below. Fixing the label should give recall 27/27 next run.
-
-- *Le Riche Richesse (score miss: model 91, GT 93)* — a real **model
-  mis-attribution**, NOT number parsing. The ASR wrote "ninety-three" as
-  "90 three", but `normalizeASRNumbers` (in `transcript.go`) already rewrites that
-  to `93` before the model sees it — confirmed the model is handed a clean
-  "...rate this 93 points". The problem is binding the score to the right wine:
-  5 of the 7 wines in that blind tasting are rated 91, and the model grabbed a 91.
-  Weak evidence the schema trim made this worse (full schema got it right 1/2
-  runs, trimmed 0/2) — dropping `matching_snippet` removed the per-score
-  "quote the supporting line" anchor. Confounded by the server running a **random
-  seed** (`-1`), so it flickers run-to-run.
-
-Concrete TODOs:
-- Add a `--seed` flag to the extractor (server seed is currently random) so evals
-  are reproducible — the score-match noise that made an earlier run look like
-  26/26 was just seed luck on the borderline Le Riche wine.
-- With a fixed seed, A/B the full vs trimmed schema on the Le Riche video to settle
-  whether the trim has a real (small) attribution cost worth the 3x speedup.
-- Eval observability: a vintage/name drift gets double-penalized (unmatched +
-  unjudged) rather than shown as "matched wine, wrong vintage" — a
-  precision / "extracted-but-unmatched" view would make this legible at a glance
-  (and would have flagged the Ruffino GT bug immediately).
 
 ## Merchant inventory scraping
 
