@@ -148,6 +148,10 @@ nix develop -c python scraping/shopify/parse.py --name advanvinum --from-cache -
 # Flaschenpost (Next.js/RSC, ~20.6k wines / ~1718 pages — use --max-pages to sample)
 nix develop -c python scraping/flaschenpost/fetch.py [--max-pages N]
 nix develop -c python scraping/flaschenpost/parse.py --from-cache --output scraping/flaschenpost/wines.json
+
+# more-than-wine (PrestaShop, ~577 wines — use --max-pages to sample)
+nix develop -c python scraping/more-than-wine/fetch.py [--max-pages N]
+nix develop -c python scraping/more-than-wine/parse.py --from-cache --output scraping/more-than-wine/wines.json
 ```
 
 `notes/RECON.md` is the recon playbook + per-platform shortcuts for adding the
@@ -167,7 +171,7 @@ Legend: 🔧 code written, untested · 🔨 partial code (fetch only, no parse) 
 - [x] [Vergani](https://www.vergani.ch/) — Shopify — `scraping/shopify/` — ~740 wines / ~1000 variants
 - [x] [AdvanVinum](https://advanvinum-wein.ch/) — Shopify — `scraping/shopify/` — ~215 wines / ~219 variants
 - [x] [Flaschenpost](https://www.flaschenpost.ch/) — Next.js/RSC — `scraping/flaschenpost/` — recon ✅ `notes/flaschenpost.md` — ~20.6k wines / ~1718 pages — tested (fetch + parse verified live on a 3-page sample; records carry wine_type/alcohol/bottle_size/country)
-- 🔧 [Bottleshop / more-than-wine](https://www.more-than-wine.com/) — PrestaShop — `scraping/more-than-wine/` — recon ✅ `notes/more-than-wine.md` — **untested** (egress proxy blocked all recon requests; platform and category URL unconfirmed)
+- [x] [Bottleshop / more-than-wine](https://www.more-than-wine.com/) — PrestaShop — `scraping/more-than-wine/` — recon ✅ `notes/more-than-wine.md` — ~577 wines — tested (fetch + parse verified live on a 2-page sample; category is `/fr/3-vins`, JSON-LD path, vintage from URL slug). Note: JSON-LD `brand` is the shop, not the producer.
 - 🔨 [Arvi](https://arvi.ch/en/) — nopCommerce (.NET) — `scraping/arvi/fetch.py` only — **no parse.py, no recon notes** (egress proxy blocked; code based on nopCommerce conventions only)
 - 🔨 [Smith & Smith](https://www.smithandsmith.ch/de) — ASP.NET/IIS (likely nopCommerce) — `scraping/smith-and-smith/fetch.py` only — recon ✅ `notes/smith-and-smith.md` — **no parse.py** (egress proxy blocked; platform unconfirmed)
 - 📋 [Bindella Weinshop](https://www.bindella.ch/weinshop/) — BigCommerce — recon ✅ `notes/bindella.md` — **no code** (egress proxy blocked; platform unconfirmed)
