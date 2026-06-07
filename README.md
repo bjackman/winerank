@@ -215,3 +215,56 @@ Legend: [x] tested live · ⛔ blocked (needs browser automation) · 🔧 code w
 - [x] [Gerstl Weinselektionen](https://www.gerstl.ch/) — Angular SPA (ng-state transfer blob), Google-hosted — `scraping/gerstl/` — recon ✅ `notes/gerstl.md` — ~7546 wines (sitemap-driven; richest data incl. appellation/grapes) — tested (fetch + parse verified live on a 20-product sample)
 - [x] [REB Wein](https://www.rebwein.ch/) — Laravel (server-rendered) — `scraping/rebwein/` — recon ✅ `notes/rebwein.md` — ~392 wines (listing-card scraping; no PDP fetches) — tested (fetch + parse verified live on a 3-page sample)
 - [x] [Le Passeur de Vin](https://www.lepasseurdevin.ch/) — WooCommerce (README's passeurdevin.ch is dead; real site is lepasseurdevin.ch) — `scraping/passeur/` — recon ✅ `notes/passeur.md` — ~1331 products (Store API; wine_type from categories) — tested (fetch + parse verified live on the full catalogue; vintage not exposed)
+
+## Matching ratings to inventory
+
+`match-market` joins the rated wines in `scores.json` to the scraped merchant
+inventory in `wines.json`, so the highest-rated wines you can actually buy
+locally float to the top.
+
+```sh
+nix run .#match-market
+```
+
+The two name formats don't line up — `scores.json` names are flat English
+strings (`2004 R. Lopez de Heredia Vina Tondonia Gran Reserva, Rioja DOCa,
+Spain`) while `wines.json` is structured (separate `producer`, localized
+`country`, vintage, etc.) — so matching is fuzzy and **producer-first**:
+
+1. Parse the scored name into vintage / producer+cuvée / country.
+2. Find the inventory producer whose tokens are best covered by the scored name,
+   requiring at least one *distinctive* token (rare across producers) so a match
+   can't hinge on a common word like "clos" or "san". Merchants that leave
+   `producer` null (e.g. realwines, bauraulac) are matched on their `name`
+   instead, which embeds the producer.
+3. Within that producer, score every wine by how well the leftover cuvée tokens
+   line up, preferring the exact vintage and falling back to other vintages
+   (flagged `vintage_exact: false`).
+
+Each scored wine gets **all** its candidate matches, ranked by a confidence
+score; accents and German/French country names are folded so they compare
+cleanly. Useful flags: `--min-confidence` (default 0.45, filters weak
+candidates), `--scores`, `--wines`, `--output`, `--text-output`.
+
+### Output
+
+| Path | Contents |
+|---|---|
+| `matches.json` | full structured detail: every scored wine, sorted by score, with all candidate matches (confidence, vintage_exact, cuvée score, price, url, …) |
+| `matches.txt` | dense human-readable digest, every match |
+| stdout | same digest, abbreviated to ≤3 matches per wine with a trailing `...` |
+
+The digest lists each wine highest-rated first:
+
+```
+<wine name> (<score>) (<video URL>):
+  <merchant> - <url> - <vintage>
+  <merchant> - <url> - <vintage>
+  ...
+```
+
+Both `matches.json` and `matches.txt` are gitignored — regenerate them with
+`match-market`. Note many wines won't match at all (most rated wines simply
+aren't carried by a Zürich shop), and matches are best-effort: a producer named
+without a distinguishing cuvée (e.g. "Chateau Montrose") surfaces every one of
+that producer's bottles, leaving the final pick to you.

@@ -229,6 +229,13 @@
             vendorHash = null;
           };
 
+          match-market = pkgs.buildGoModule {
+            pname = "match-market";
+            version = "0.1.0";
+            src = ./cmd/match-market;
+            vendorHash = null;
+          };
+
           default = self.packages.${system}.get-transcripts;
         };
 

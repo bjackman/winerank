@@ -12,4 +12,8 @@ scraping/shopify/*.json
 
 # Combined output
 wines.json
+
+# Matcher output
+matches.json
+matches.txt
 .claude/
