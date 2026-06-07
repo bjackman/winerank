@@ -143,15 +143,29 @@
             declare -a passed=()
             declare -a failed=()
 
+            # Build a reverse map pid→merchant so we can identify who finished.
+            declare -A pid_to_merchant
             for m in "''${merchants[@]}"; do
+              pid_to_merchant[''${pids[$m]}]=$m
+            done
+
+            remaining=''${#merchants[@]}
+            while [ "$remaining" -gt 0 ]; do
+              if wait -n -p finished_pid; then
+                code=0
+              else
+                code=$?
+              fi
+              m=''${pid_to_merchant[$finished_pid]}
               printf '\n\033[1m--- %s ---\033[0m\n' "$m"
-              if wait "''${pids[$m]}"; then
+              cat "''${tmpfiles[$m]}"
+              rm -f "''${tmpfiles[$m]}"
+              if [ $code -eq 0 ]; then
                 passed+=("$m")
               else
                 failed+=("$m")
               fi
-              cat "''${tmpfiles[$m]}"
-              rm -f "''${tmpfiles[$m]}"
+              remaining=$(( remaining - 1 ))
             done
 
             printf '\n\033[1m--- Summary ---\033[0m\n'
