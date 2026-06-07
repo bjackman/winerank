@@ -1,5 +1,5 @@
 {
-  description = "winerank — YouTube transcript fetcher + realwines.ch scraper";
+  description = "winerank — YouTube transcript fetcher + wine shop scrapers";
 
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
@@ -17,43 +17,145 @@
           ps.requests
         ]);
 
-        # Fetch all pages from the WooCommerce Store API into ./scraping/realwines/cache/
-        fetch-realwines = pkgs.writeShellApplication {
-          name = "fetch-realwines";
-          runtimeInputs = [ pythonEnvScraper ];
+        # cd to git root before running scripts so Path.cwd()-based paths resolve correctly.
+        cdRoot = ''
+          root=$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")
+          cd "$root"
+        '';
+
+        # Build fetch + parse + combined scrape packages for a standard scraper.
+        # fetchArgs: extra fixed args forwarded to fetch.py (before "$@")
+        # outputPath: --output value passed to parse.py
+        mkScraper = { name, fetchScript, parseScript, fetchArgs ? "", outputPath }:
+          let
+            fetch = pkgs.writeShellApplication {
+              name = "fetch-${name}";
+              runtimeInputs = [ pythonEnvScraper pkgs.git ];
+              text = ''
+                ${cdRoot}
+                exec python3 ${fetchScript} ${fetchArgs} "$@"
+              '';
+            };
+            parse = pkgs.writeShellApplication {
+              name = "parse-${name}";
+              runtimeInputs = [ pythonEnvScraper pkgs.git ];
+              text = ''
+                ${cdRoot}
+                exec python3 ${parseScript} --from-cache --output ${outputPath}
+              '';
+            };
+            scrape = pkgs.writeShellApplication {
+              name = "scrape-${name}";
+              runtimeInputs = [ pythonEnvScraper pkgs.git ];
+              text = ''
+                ${cdRoot}
+                python3 ${fetchScript} ${fetchArgs} "$@"
+                python3 ${parseScript} --from-cache --output ${outputPath}
+              '';
+            };
+          in { inherit fetch parse scrape; };
+
+        # Standard scrapers: one directory per merchant, wines.json output.
+        standardScrapers = builtins.listToAttrs (map (name:
+          {
+            inherit name;
+            value = mkScraper {
+              inherit name;
+              fetchScript = ./scraping/${name}/fetch.py;
+              parseScript = ./scraping/${name}/parse.py;
+              outputPath = "scraping/${name}/wines.json";
+            };
+          }
+        ) [
+          "arvi"
+          "bauraulac"
+          "flaschenpost"
+          "gerstl"
+          "landolt"
+          "moevenpick"
+          "more-than-wine"
+          "passeur"
+          "realwines"
+          "rebwein"
+          "smith-and-smith"
+          "vinazion"
+          "zweifel"
+        ]);
+
+        # Shopify scrapers: one generic script, two merchants.
+        shopifyScrapers = builtins.listToAttrs (map ({ name, shop }:
+          {
+            inherit name;
+            value = mkScraper {
+              inherit name;
+              fetchScript = ./scraping/shopify/fetch.py;
+              parseScript = ./scraping/shopify/parse.py;
+              fetchArgs = "--shop ${shop} --name ${name}";
+              outputPath = "scraping/shopify/${name}.json";
+            };
+          }
+        ) [
+          { name = "vergani";    shop = "www.vergani.ch"; }
+          { name = "advanvinum"; shop = "advanvinum-wein.ch"; }
+        ]);
+
+        allScrapers = standardScrapers // shopifyScrapers;
+
+        # All scrape-* binaries as a list.
+        allScrapePackages = map (name: allScrapers.${name}.scrape) (builtins.attrNames allScrapers);
+
+        # scrape-all: run every merchant sequentially, continue on failure, print summary.
+        scrape-all = pkgs.writeShellApplication {
+          name = "scrape-all";
+          runtimeInputs = allScrapePackages ++ [ pkgs.git ];
           text = ''
-            exec python3 ${./scraping/realwines/fetch.py} "$@"
+            root=$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")
+            cd "$root"
+
+            merchants=(
+              arvi bauraulac flaschenpost gerstl landolt moevenpick
+              more-than-wine passeur realwines rebwein smith-and-smith
+              vinazion zweifel vergani advanvinum
+            )
+
+            declare -a passed=()
+            declare -a failed=()
+
+            for m in "''${merchants[@]}"; do
+              printf '\n\033[1m==> %s\033[0m\n' "$m"
+              if "scrape-$m" "$@"; then
+                passed+=("$m")
+              else
+                failed+=("$m")
+              fi
+            done
+
+            printf '\n\033[1m--- Summary ---\033[0m\n'
+            for m in "''${passed[@]}"; do printf '  \033[32mok\033[0m  %s\n' "$m"; done
+            for m in "''${failed[@]}"; do printf '  \033[31mFAIL\033[0m %s\n' "$m"; done
+
+            if [ ''${#failed[@]} -gt 0 ]; then
+              printf '\n%d/%d merchants failed.\n' "''${#failed[@]}" "''${#merchants[@]}"
+              exit 1
+            fi
+            printf '\nAll %d merchants scraped successfully.\n' "''${#merchants[@]}"
           '';
         };
 
-        # Parse cached pages into a clean wines.json
-        parse-realwines = pkgs.writeShellApplication {
-          name = "parse-realwines";
-          runtimeInputs = [ pythonEnvScraper ];
-          text = ''
-            exec python3 ${./scraping/realwines/parse.py} "$@"
-          '';
-        };
-
-        # Convenience: fetch (if needed) then parse → scraping/realwines/wines.json
-        scrape-realwines = pkgs.writeShellApplication {
-          name = "scrape-realwines";
-          runtimeInputs = [ pythonEnvScraper ];
-          text = ''
-            set -euo pipefail
-            SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-            CACHE_DIR="$SCRIPT_DIR/../scraping/realwines/cache"
-            OUT="$SCRIPT_DIR/../scraping/realwines/wines.json"
-            python3 ${./scraping/realwines/fetch.py} "$@" > /dev/null
-            python3 ${./scraping/realwines/parse.py} --from-cache --output "$OUT"
-            echo "Done → $OUT"
-          '';
-        };
+        # Flatten all individual packages into a single attrset.
+        scraperPackages = builtins.foldl'
+          (acc: name: acc // {
+            "fetch-${name}" = allScrapers.${name}.fetch;
+            "parse-${name}" = allScrapers.${name}.parse;
+            "scrape-${name}" = allScrapers.${name}.scrape;
+          })
+          {}
+          (builtins.attrNames allScrapers);
 
       in
       {
-        packages = rec {
-          inherit fetch-realwines parse-realwines scrape-realwines;
+        packages = scraperPackages // {
+          inherit scrape-all;
 
           get-transcripts = pkgs.python3Packages.buildPythonApplication {
             pname = "get-transcripts";
@@ -85,11 +187,13 @@
             src = ./cmd/eval;
             vendorHash = null;
           };
-          default = get-transcripts;
+
+          default = self.packages.${system}.get-transcripts;
         };
 
         devShells.default = pkgs.mkShell {
           inputsFrom = [ self.packages.${system}.get-transcripts ];
+          packages = allScrapePackages ++ [ scrape-all ];
         };
       }
     );
