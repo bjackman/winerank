@@ -35,7 +35,9 @@ func main() {
 	scoresPath := flag.String("scores", "scores.json", "path to extractor scores")
 	winesPath := flag.String("wines", "wines.json", "path to combined merchant inventory")
 	outPath := flag.String("output", "matches.json", "path to write detailed matches (JSON)")
-	textPath := flag.String("text-output", "matches.txt", "path to write the dense human-readable digest")
+	textPath := flag.String("text-output", "matches.txt", "path to write the dense per-wine digest")
+	affordPath := flag.String("affordable-output", "affordable.txt", "path to write the full cheapest-per-score view")
+	topN := flag.Int("top", 3, "cheapest wines shown per score on stdout")
 	minConf := flag.Float64("min-confidence", 0.45, "below this a wine is reported unmatched")
 	flag.Parse()
 
@@ -164,8 +166,10 @@ func main() {
 						Name:         w.Name,
 						Vintage:      w.Vintage,
 						Price:        w.Price,
+						PricePer750:  pricePer750(w.Price, w.BottleSizeML),
 						Currency:     w.Currency,
 						InStock:      w.InStock,
+						BottleSizeML: w.BottleSizeML,
 						URL:          w.URL,
 					})
 				}
@@ -201,22 +205,36 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Full digest to the file, then the abbreviated (<=3 matches/wine) view to
-	// stdout. File first so a broken stdout pipe can't lose the file.
-	f, err := os.Create(*textPath)
-	if err != nil {
+	// Full per-wine digest to its file (file written before any stdout so a broken
+	// stdout pipe can't lose it).
+	if err := writeFile(*textPath, func(w io.Writer) { renderDigest(w, out, 0) }); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
-	renderDigest(f, out, 0)
-	f.Close()
 
-	renderDigest(os.Stdout, out, 3)
+	// Affordability view: cheapest wines per score. Full version to its file, the
+	// top-N-per-score headline to stdout.
+	afford := affordable(out)
+	if err := writeFile(*affordPath, func(w io.Writer) { renderAffordable(w, afford, 0) }); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+	renderAffordable(os.Stdout, afford, *topN)
 
 	fmt.Fprintf(os.Stderr, "scored wines: %d\n", scored)
 	fmt.Fprintf(os.Stderr, "with >=1 match (conf >= %.2f): %d\n", *minConf, withMatch)
 	fmt.Fprintf(os.Stderr, "total candidate matches: %d\n", totalCand)
-	fmt.Fprintf(os.Stderr, "-> %s, %s\n", *outPath, *textPath)
+	fmt.Fprintf(os.Stderr, "-> %s, %s, %s\n", *outPath, *textPath, *affordPath)
+}
+
+func writeFile(path string, render func(io.Writer)) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	render(f)
+	return nil
 }
 
 // renderDigest writes a dense, skim-friendly view: each scored wine (already
@@ -239,6 +257,141 @@ func renderDigest(w io.Writer, out output, limit int) {
 		}
 		fmt.Fprintln(w)
 	}
+}
+
+// affordableWine is a scored wine paired with its cheapest available bottle.
+type affordableWine struct {
+	scoredName string
+	chosen     candidate
+}
+
+// scoreGroup holds the wines available at one score, cheapest (per-750ml) first.
+type scoreGroup struct {
+	score int
+	wines []affordableWine
+}
+
+// affordable reduces each scored wine to its cheapest available bottle, then
+// groups by score (deduping wines that recur across videos) so each score lists
+// the cheapest ways to drink at that quality.
+func affordable(out output) []scoreGroup {
+	byScore := make(map[int][]affordableWine)
+	seen := make(map[string]bool) // score+name, to drop cross-video duplicates
+	for _, sw := range out.Wines {
+		m := cheapestAvailable(sw.Matches)
+		if m == nil {
+			continue
+		}
+		key := fmt.Sprintf("%d|%s", sw.Score, sw.ScoredName)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		byScore[sw.Score] = append(byScore[sw.Score], affordableWine{sw.ScoredName, *m})
+	}
+
+	groups := make([]scoreGroup, 0, len(byScore))
+	for score, wines := range byScore {
+		sort.SliceStable(wines, func(i, j int) bool {
+			return *wines[i].chosen.PricePer750 < *wines[j].chosen.PricePer750
+		})
+		groups = append(groups, scoreGroup{score, wines})
+	}
+	sort.SliceStable(groups, func(i, j int) bool { return groups[i].score > groups[j].score })
+	return groups
+}
+
+// cheapestAvailable returns the cheapest in-stock, priced bottle (by per-750ml
+// price), preferring an exact-vintage match and falling back to other vintages.
+// Returns nil if no available bottle exists.
+func cheapestAvailable(matches []candidate) *candidate {
+	var bestExact, bestOther *candidate
+	for i := range matches {
+		m := &matches[i]
+		if m.Price == nil || m.PricePer750 == nil {
+			continue
+		}
+		if m.InStock != nil && !*m.InStock {
+			continue
+		}
+		if m.VintageExact {
+			if bestExact == nil || *m.PricePer750 < *bestExact.PricePer750 {
+				bestExact = m
+			}
+		} else if bestOther == nil || *m.PricePer750 < *bestOther.PricePer750 {
+			bestOther = m
+		}
+	}
+	if bestExact != nil {
+		return bestExact
+	}
+	return bestOther
+}
+
+// renderAffordable writes the cheapest-per-score view. When topN > 0 each score
+// shows at most that many wines with a trailing "..." if more exist.
+func renderAffordable(w io.Writer, groups []scoreGroup, topN int) {
+	for _, g := range groups {
+		fmt.Fprintf(w, "%d:\n", g.score)
+		for i, aw := range g.wines {
+			if topN > 0 && i >= topN {
+				fmt.Fprintln(w, "  ...")
+				break
+			}
+			m := aw.chosen
+			fmt.Fprintf(w, "  %s - %s %s (%s, %s%s)%s\n",
+				aw.scoredName, moneyStr(*m.Price), m.Currency, m.Merchant,
+				vintageNote(m), sizeNote(m), urlSuffix(m.URL))
+		}
+		fmt.Fprintln(w)
+	}
+}
+
+func vintageNote(m candidate) string {
+	if m.VintageExact {
+		return vintageStr(m.Vintage)
+	}
+	return vintageStr(m.Vintage) + " — diff vintage"
+}
+
+func sizeNote(m candidate) string {
+	if m.BottleSizeML == nil {
+		return ", 750ml?" // unknown size, treated as 750ml for ranking
+	}
+	s := fmt.Sprintf(", %dml", *m.BottleSizeML)
+	if *m.BottleSizeML != 750 && m.PricePer750 != nil {
+		s += fmt.Sprintf(", ~%s %s/750ml", moneyStr(*m.PricePer750), m.Currency)
+	}
+	return s
+}
+
+func urlSuffix(u string) string {
+	if u == "" {
+		return ""
+	}
+	return " " + u
+}
+
+// pricePer750 normalizes a price (in cents) to a 750ml-equivalent, treating an
+// unknown bottle size as a standard 750ml bottle.
+func pricePer750(price, sizeML *int) *int {
+	if price == nil {
+		return nil
+	}
+	size := 750
+	if sizeML != nil && *sizeML > 0 {
+		size = *sizeML
+	}
+	v := *price * 750 / size
+	return &v
+}
+
+// moneyStr formats integer cents as francs, dropping the decimals when whole.
+func moneyStr(cents int) string {
+	if cents%100 == 0 {
+		return itoa(cents / 100)
+	}
+	return fmt.Sprintf("%d.%02d", cents/100, cents%100)
 }
 
 func vintageStr(v *int) string {

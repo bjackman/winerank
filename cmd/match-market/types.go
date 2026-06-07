@@ -15,18 +15,21 @@ type scoresInput struct {
 // is a separate field here (unlike scores.json, where it's embedded in Name),
 // and Country is localized (e.g. "Schweiz", "Frankreich").
 type inventoryWine struct {
-	Merchant string `json:"merchant"`
-	Name     string `json:"name"`
-	Producer string `json:"producer"`
-	Vintage  *int   `json:"vintage"`
-	Price    *int   `json:"price"`
-	Currency string `json:"currency"`
-	InStock  *bool  `json:"in_stock"`
-	Country  string `json:"country"`
-	URL      string `json:"url"`
+	Merchant     string `json:"merchant"`
+	Name         string `json:"name"`
+	Producer     string `json:"producer"`
+	Vintage      *int   `json:"vintage"`
+	Price        *int   `json:"price"`
+	Currency     string `json:"currency"`
+	InStock      *bool  `json:"in_stock"`
+	BottleSizeML *int   `json:"bottle_size_ml"`
+	Country      string `json:"country"`
+	URL          string `json:"url"`
 }
 
-// candidate is one bottle on sale that might be the scored wine.
+// candidate is one bottle on sale that might be the scored wine. PricePer750 is
+// Price normalized to a 750ml-equivalent (null bottle size treated as 750ml), so
+// magnums and half-bottles can be compared on affordability.
 type candidate struct {
 	Confidence   float64 `json:"confidence"`
 	VintageExact bool    `json:"vintage_exact"`
@@ -36,8 +39,10 @@ type candidate struct {
 	Name         string  `json:"name"`
 	Vintage      *int    `json:"vintage"`
 	Price        *int    `json:"price"`
+	PricePer750  *int    `json:"price_per_750"`
 	Currency     string  `json:"currency"`
 	InStock      *bool   `json:"in_stock"`
+	BottleSizeML *int    `json:"bottle_size_ml"`
 	URL          string  `json:"url"`
 }
 

@@ -16,4 +16,5 @@ wines.json
 # Matcher output
 matches.json
 matches.txt
+affordable.txt
 .claude/

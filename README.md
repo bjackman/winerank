@@ -244,27 +244,41 @@ Spain`) while `wines.json` is structured (separate `producer`, localized
 Each scored wine gets **all** its candidate matches, ranked by a confidence
 score; accents and German/French country names are folded so they compare
 cleanly. Useful flags: `--min-confidence` (default 0.45, filters weak
-candidates), `--scores`, `--wines`, `--output`, `--text-output`.
+candidates), `--top` (cheapest wines shown per score on stdout, default 3),
+`--scores`, `--wines`, `--output`, `--text-output`, `--affordable-output`.
 
-### Output
+### Affordability view (stdout)
+
+The headline output answers "what's the cheapest bottle I can buy at each
+quality level?". For each score (highest first) it lists the cheapest wines,
+picking each wine's lowest-priced available bottle — preferring the exact rated
+vintage, falling back to other vintages (flagged `— diff vintage`):
+
+```
+98:
+  2023 Chateau Montrose, Saint-Estephe, France - 33 CHF (arvi, 2023, 750ml) <url>
+97:
+  ... Tignanello ... - 63.80 CHF (arvi, 2022 — diff vintage, 1500ml, ~31.90 CHF/750ml) <url>
+```
+
+Prices are normalized to a **750ml-equivalent** for ranking (unknown bottle size
+treated as standard 750ml; non-750ml bottles show the `~X/750ml` figure), so
+magnums and half-bottles compare fairly. Out-of-stock bottles are excluded;
+wines that recur across videos are deduped. The cheapest match is the one most
+likely to be a wrong, cheap mismatch, so treat low-confidence rows skeptically —
+this view keeps the same 0.45 floor as the rest.
+
+### Output files
 
 | Path | Contents |
 |---|---|
-| `matches.json` | full structured detail: every scored wine, sorted by score, with all candidate matches (confidence, vintage_exact, cuvée score, price, url, …) |
-| `matches.txt` | dense human-readable digest, every match |
-| stdout | same digest, abbreviated to ≤3 matches per wine with a trailing `...` |
+| stdout | affordability view: cheapest `--top` (default 3) wines per score, `...` when more |
+| `affordable.txt` | same view, **all** wines per score (uncapped) |
+| `matches.json` | full structured detail: every scored wine, sorted by score, with all candidate matches (confidence, vintage_exact, cuvée score, price, price_per_750, url, …) |
+| `matches.txt` | dense per-wine digest, every match, as `<wine name> (<score>) (<video URL>):` then `merchant - url - vintage` lines |
 
-The digest lists each wine highest-rated first:
-
-```
-<wine name> (<score>) (<video URL>):
-  <merchant> - <url> - <vintage>
-  <merchant> - <url> - <vintage>
-  ...
-```
-
-Both `matches.json` and `matches.txt` are gitignored — regenerate them with
-`match-market`. Note many wines won't match at all (most rated wines simply
-aren't carried by a Zürich shop), and matches are best-effort: a producer named
-without a distinguishing cuvée (e.g. "Chateau Montrose") surfaces every one of
-that producer's bottles, leaving the final pick to you.
+All three generated files are gitignored — regenerate them with `match-market`.
+Note many wines won't match at all (most rated wines simply aren't carried by a
+Zürich shop), and matches are best-effort: a producer named without a
+distinguishing cuvée (e.g. "Chateau Montrose") surfaces every one of that
+producer's bottles, leaving the final pick to you.
