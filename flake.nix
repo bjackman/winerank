@@ -114,7 +114,7 @@
           '';
         };
 
-        # scrape-all: run every merchant sequentially, combine into wines.json, print summary.
+        # scrape-all: run all merchants in parallel, combine into wines.json, print summary.
         scrape-all = pkgs.writeShellApplication {
           name = "scrape-all";
           runtimeInputs = allScrapePackages ++ [ combine-wines pkgs.git ];
@@ -128,16 +128,30 @@
               vinazion zweifel vergani advanvinum
             )
 
+            declare -A pids
+            declare -A tmpfiles
+
+            printf '\033[1mStarting %d scrapers in parallel...\033[0m\n' "''${#merchants[@]}"
+            for m in "''${merchants[@]}"; do
+              tmp=$(mktemp)
+              tmpfiles[$m]=$tmp
+              "scrape-$m" "$@" >"$tmp" 2>&1 &
+              pids[$m]=$!
+              printf '  [pid %d] %s\n' "''${pids[$m]}" "$m"
+            done
+
             declare -a passed=()
             declare -a failed=()
 
             for m in "''${merchants[@]}"; do
-              printf '\n\033[1m==> %s\033[0m\n' "$m"
-              if "scrape-$m" "$@"; then
+              printf '\n\033[1m--- %s ---\033[0m\n' "$m"
+              if wait "''${pids[$m]}"; then
                 passed+=("$m")
               else
                 failed+=("$m")
               fi
+              cat "''${tmpfiles[$m]}"
+              rm -f "''${tmpfiles[$m]}"
             done
 
             printf '\n\033[1m--- Summary ---\033[0m\n'
