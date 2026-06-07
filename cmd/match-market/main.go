@@ -259,9 +259,11 @@ func renderDigest(w io.Writer, out output, limit int) {
 	}
 }
 
-// affordableWine is a scored wine paired with its cheapest available bottle.
+// affordableWine is a scored wine paired with its cheapest available bottle,
+// plus the video it was rated in.
 type affordableWine struct {
 	scoredName string
+	videoID    string
 	chosen     candidate
 }
 
@@ -287,7 +289,7 @@ func affordable(out output) []scoreGroup {
 			continue
 		}
 		seen[key] = true
-		byScore[sw.Score] = append(byScore[sw.Score], affordableWine{sw.ScoredName, *m})
+		byScore[sw.Score] = append(byScore[sw.Score], affordableWine{sw.ScoredName, sw.VideoID, *m})
 	}
 
 	groups := make([]scoreGroup, 0, len(byScore))
@@ -339,9 +341,9 @@ func renderAffordable(w io.Writer, groups []scoreGroup, topN int) {
 				break
 			}
 			m := aw.chosen
-			fmt.Fprintf(w, "  %s - %s %s (%s, %s%s)%s\n",
+			fmt.Fprintf(w, "  %s - %s %s (%s, %s%s)%s — rated: https://www.youtube.com/watch?v=%s\n",
 				aw.scoredName, moneyStr(*m.Price), m.Currency, m.Merchant,
-				vintageNote(m), sizeNote(m), urlSuffix(m.URL))
+				vintageNote(m), sizeNote(m), urlSuffix(m.URL), aw.videoID)
 		}
 		fmt.Fprintln(w)
 	}

@@ -256,9 +256,9 @@ vintage, falling back to other vintages (flagged `— diff vintage`):
 
 ```
 98:
-  2023 Chateau Montrose, Saint-Estephe, France - 33 CHF (arvi, 2023, 750ml) <url>
+  2023 Chateau Montrose, Saint-Estephe, France - 33 CHF (arvi, 2023, 750ml) <merchant url> — rated: <video url>
 97:
-  ... Tignanello ... - 63.80 CHF (arvi, 2022 — diff vintage, 1500ml, ~31.90 CHF/750ml) <url>
+  ... Tignanello ... - 63.80 CHF (arvi, 2022 — diff vintage, 1500ml, ~31.90 CHF/750ml) <merchant url> — rated: <video url>
 ```
 
 Prices are normalized to a **750ml-equivalent** for ranking (unknown bottle size
