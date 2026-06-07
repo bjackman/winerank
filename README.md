@@ -111,83 +111,77 @@ But these won't be massive speedups.
 All merchant scrapers live under `scraping/`, one directory per merchant (or per
 platform), following the same cache-first fetch + parse pattern.
 
-Each scraper is a `fetch.py` (cache-first; one raw page file under `cache/`) +
-`parse.py` (cache → clean wine records), so every merchant runs the same way:
+### Running all scrapers
 
 ```sh
-nix develop -c python scraping/<merchant>/fetch.py [opts]
-nix develop -c python scraping/<merchant>/parse.py --from-cache --output scraping/<merchant>/wines.json
+nix run .#scrape-all            # fetch + parse all 15 merchants → wines.json
+nix run .#scrape-all -- --refresh  # ignore cache, re-download everything
 ```
 
-Notes on the invocation:
+This writes per-merchant files under `scraping/` and then merges them all into
+`wines.json` at the repo root (unified schema, one record per wine, ~tens of
+thousands of entries once full catalogues are fetched).
 
-- **Use `python`, not `python3`** — there's no `python3` on PATH. The dev shell
-  provides `python` (3.13) + `requests` transitively via the `get-transcripts`
-  package inputs.
-- `fetch.py` is cache-first: it reuses `scraping/<merchant>/cache/page_*.json`
-  and only hits the network for missing pages. Pass `--refresh` to re-download.
-- If `nix develop` fails to enter the shell with `Failed to retrieve the parent
-  of Git commit … object not found`, your checkout is a partial/blobless clone
-  that Nix's libgit2 can't walk. Either unshallow the clone
-  (`git fetch --unshallow` / `git repack -d`) or append `".?shallow=1"` to the
-  flake ref as a one-off (`nix develop ".?shallow=1" -c …`).
+### Running a single merchant
 
-Tested and confirmed working:
+Every merchant has its own `scrape-<name>` package. Arguments are forwarded to
+the fetch step, so `--refresh`, `--max-pages`, `--max-products` etc. all work:
 
 ```sh
-# Vinazion (WooCommerce, ~305 wines)
-nix develop -c python scraping/vinazion/fetch.py
-nix develop -c python scraping/vinazion/parse.py --from-cache --output scraping/vinazion/wines.json
+nix run .#scrape-arvi
+nix run .#scrape-arvi -- --refresh
+nix run .#scrape-flaschenpost -- --max-pages 5   # sample, don't pull 1700 pages
+nix run .#scrape-bauraulac -- --max-products 20
+```
 
-# Shopify shops (one parametrised scraper for all of them; --shop + --name)
-nix develop -c python scraping/shopify/fetch.py --shop www.vergani.ch     --name vergani
-nix develop -c python scraping/shopify/parse.py --name vergani --from-cache --output scraping/shopify/vergani.json
-nix develop -c python scraping/shopify/fetch.py --shop advanvinum-wein.ch --name advanvinum
-nix develop -c python scraping/shopify/parse.py --name advanvinum --from-cache --output scraping/shopify/advanvinum.json
+Shopify merchants are exposed by merchant name, not platform:
 
-# Flaschenpost (Next.js/RSC, ~20.6k wines / ~1718 pages — use --max-pages to sample)
-nix develop -c python scraping/flaschenpost/fetch.py [--max-pages N]
-nix develop -c python scraping/flaschenpost/parse.py --from-cache --output scraping/flaschenpost/wines.json
+```sh
+nix run .#scrape-vergani
+nix run .#scrape-advanvinum
+```
 
-# more-than-wine (PrestaShop, ~577 wines — use --max-pages to sample)
-nix develop -c python scraping/more-than-wine/fetch.py [--max-pages N]
-nix develop -c python scraping/more-than-wine/parse.py --from-cache --output scraping/more-than-wine/wines.json
+### In the dev shell
 
-# Arvi (nopCommerce, large fine-wine catalogue — use --max-pages to sample)
-nix develop -c python scraping/arvi/fetch.py [--max-pages N]
-nix develop -c python scraping/arvi/parse.py --from-cache --output scraping/arvi/wines.json
+After `nix develop` (append `.?shallow=1` if your checkout is a shallow clone —
+see below), all `scrape-*` commands and `combine-wines` are on `$PATH`:
 
-# Smith & Smith (custom React/ASP.NET, ~2984 products — use --max-pages to sample)
-nix develop -c python scraping/smith-and-smith/fetch.py [--max-pages N]
-nix develop -c python scraping/smith-and-smith/parse.py --from-cache --output scraping/smith-and-smith/wines.json
+```sh
+nix develop
+scrape-arvi
+scrape-all --refresh
+combine-wines              # re-merge existing per-merchant files without re-fetching
+```
 
-# Mövenpick (Magento, sitemap-driven, ~4300 wines — use --max-products to sample)
-nix develop -c python scraping/moevenpick/fetch.py [--max-products N]
-nix develop -c python scraping/moevenpick/parse.py --from-cache --output scraping/moevenpick/wines.json
+### Fetch and parse separately
 
-# Baur au Lac Vins (Java app, sitemap-driven, ~2342 wines — use --max-products to sample)
-nix develop -c python scraping/bauraulac/fetch.py [--max-products N]
-nix develop -c python scraping/bauraulac/parse.py --from-cache --output scraping/bauraulac/wines.json
+If you want to re-parse without re-fetching (e.g. after editing a parse script):
 
-# Zweifel 1898 (Java app, sitemap-driven, ~781 wines — use --max-products to sample)
-nix develop -c python scraping/zweifel/fetch.py [--max-products N]
-nix develop -c python scraping/zweifel/parse.py --from-cache --output scraping/zweifel/wines.json
+```sh
+nix run .#fetch-arvi
+nix run .#parse-arvi
+```
 
-# Gerstl (Angular ng-state, sitemap-driven, ~7546 wines — use --max-products to sample)
-nix develop -c python scraping/gerstl/fetch.py [--max-products N]
-nix develop -c python scraping/gerstl/parse.py --from-cache --output scraping/gerstl/wines.json
+### Output files
 
-# REB Wein (Laravel, listing-card scraping, ~392 wines — use --max-pages to sample)
-nix develop -c python scraping/rebwein/fetch.py [--max-pages N]
-nix develop -c python scraping/rebwein/parse.py --from-cache --output scraping/rebwein/wines.json
+| Path | Contents |
+|---|---|
+| `scraping/<merchant>/wines.json` | per-merchant records (standard merchants) |
+| `scraping/shopify/<merchant>.json` | per-merchant records (Shopify merchants) |
+| `wines.json` | all merchants merged, unified schema |
 
-# Landolt Weine (Shopware 6, sitemap-driven, ~693 products — use --max-products to sample)
-nix develop -c python scraping/landolt/fetch.py [--max-products N]
-nix develop -c python scraping/landolt/parse.py --from-cache --output scraping/landolt/wines.json
+`wines.json` is gitignored — regenerate it with `scrape-all` or `combine-wines`.
 
-# Le Passeur de Vin (WooCommerce, ~1331 products)
-nix develop -c python scraping/passeur/fetch.py
-nix develop -c python scraping/passeur/parse.py --from-cache --output scraping/passeur/wines.json
+### Shallow-clone note
+
+If `nix develop` (or `nix run`) fails with `Failed to retrieve the parent of Git
+commit … object not found`, your checkout is a partial/blobless clone that Nix's
+libgit2 can't walk. Either unshallow (`git fetch --unshallow`) or append
+`".?shallow=1"` to every flake ref:
+
+```sh
+nix run ".?shallow=1"#scrape-all
+nix develop ".?shallow=1"
 ```
 
 `notes/RECON.md` is the recon playbook + per-platform shortcuts for adding the
