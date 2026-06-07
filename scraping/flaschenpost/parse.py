@@ -17,7 +17,7 @@ import re
 import sys
 from pathlib import Path
 
-CACHE_DIR = Path(__file__).parent / "cache"
+CACHE_DIR = Path.cwd() / "scraping" / "flaschenpost" / "cache"
 MERCHANT = "flaschenpost"
 LOCALE = "de-CH"
 
