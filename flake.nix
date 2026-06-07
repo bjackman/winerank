@@ -104,10 +104,20 @@
         # All scrape-* binaries as a list.
         allScrapePackages = map (name: allScrapers.${name}.scrape) (builtins.attrNames allScrapers);
 
-        # scrape-all: run every merchant sequentially, continue on failure, print summary.
+        # combine-wines: merge all per-merchant wines.json into wines.json at repo root.
+        combine-wines = pkgs.writeShellApplication {
+          name = "combine-wines";
+          runtimeInputs = [ pythonEnvScraper pkgs.git ];
+          text = ''
+            ${cdRoot}
+            exec python3 ${./scraping/combine.py} "$@"
+          '';
+        };
+
+        # scrape-all: run every merchant sequentially, combine into wines.json, print summary.
         scrape-all = pkgs.writeShellApplication {
           name = "scrape-all";
-          runtimeInputs = allScrapePackages ++ [ pkgs.git ];
+          runtimeInputs = allScrapePackages ++ [ combine-wines pkgs.git ];
           text = ''
             root=$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")
             cd "$root"
@@ -138,7 +148,10 @@
               printf '\n%d/%d merchants failed.\n' "''${#failed[@]}" "''${#merchants[@]}"
               exit 1
             fi
-            printf '\nAll %d merchants scraped successfully.\n' "''${#merchants[@]}"
+
+            printf '\n\033[1m==> combine\033[0m\n'
+            combine-wines
+            printf '\nAll %d merchants scraped and combined into wines.json.\n' "''${#merchants[@]}"
           '';
         };
 
@@ -155,7 +168,7 @@
       in
       {
         packages = scraperPackages // {
-          inherit scrape-all;
+          inherit scrape-all combine-wines;
 
           get-transcripts = pkgs.python3Packages.buildPythonApplication {
             pname = "get-transcripts";
@@ -193,7 +206,7 @@
 
         devShells.default = pkgs.mkShell {
           inputsFrom = [ self.packages.${system}.get-transcripts ];
-          packages = allScrapePackages ++ [ scrape-all ];
+          packages = allScrapePackages ++ [ scrape-all combine-wines ];
         };
       }
     );

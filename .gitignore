@@ -9,4 +9,7 @@ scores.json
 scraping/*/cache/
 scraping/*/wines.json
 scraping/shopify/*.json
+
+# Combined output
+wines.json
 .claude/
