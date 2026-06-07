@@ -108,6 +108,10 @@ def fetch_page(page: int, refresh: bool = False) -> str:
 # Full catalogue fetch
 # ---------------------------------------------------------------------------
 
+def has_products(html: str) -> bool:
+    return '<div class="item-box">' in html
+
+
 def fetch_all(refresh: bool = False, max_pages: int | None = None) -> None:
     """
     Fetch all pages of the wine catalogue, caching each as page_NNN.html.
@@ -115,6 +119,10 @@ def fetch_all(refresh: bool = False, max_pages: int | None = None) -> None:
     Page 1 is fetched first (or loaded from cache) so we can detect the total
     page count.  Subsequent pages are then fetched in order with a 1.5 s
     polite delay between live requests.
+
+    Early-exit: if a live-fetched page contains no products, the real end of
+    the catalogue has been reached (the nopCommerce pager over-reports the page
+    count).  The empty page is not kept in cache.
     """
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -129,17 +137,22 @@ def fetch_all(refresh: bool = False, max_pages: int | None = None) -> None:
     if max_pages is not None:
         total_pages = min(total_pages, max_pages)
 
-    print(f"  [meta]  detected {total_pages} page(s)", file=sys.stderr)
+    print(f"  [meta]  detected {total_pages} page(s) (pager upper bound)", file=sys.stderr)
 
-    # Fetch remaining pages
+    fetched = 1
     for page in range(2, total_pages + 1):
         cache_file = CACHE_DIR / f"page_{page:03d}.html"
         was_cached = cache_file.exists() and not refresh
-        fetch_page(page, refresh=refresh)
+        html = fetch_page(page, refresh=refresh)
         if not was_cached:
             time.sleep(DELAY_SECONDS)
+            if not has_products(html):
+                print(f"  [stop]  page {page} has no products — end of catalogue", file=sys.stderr)
+                cache_file.unlink(missing_ok=True)
+                break
+        fetched += 1
 
-    print(f"Done. {total_pages} page(s) in cache at {CACHE_DIR}", file=sys.stderr)
+    print(f"Done. {fetched} page(s) in cache at {CACHE_DIR}", file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------
